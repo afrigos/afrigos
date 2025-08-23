@@ -26,6 +26,7 @@ const navigationItems = [
   { title: "Dashboard", url: "/", icon: Home },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Vendors", url: "/vendors", icon: Users },
+  { title: "Vendor Approval", url: "/vendor-approval", icon: TrendingUp },
   { title: "Products", url: "/products", icon: Package },
   { title: "Support", url: "/support", icon: MessageSquare },
   { title: "Security", url: "/security", icon: Shield },

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export function AdminHeader() {
+  const { user, logout } = useAuth();
+  
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
     <header className="h-16 border-b bg-card/50 backdrop-blur-sm flex items-center justify-between px-6">
       <div className="flex items-center space-x-4">
@@ -44,8 +51,8 @@ export function AdminHeader() {
                 <User className="h-4 w-4 text-primary-foreground" />
               </div>
               <div className="text-left">
-                <p className="text-sm font-medium">Admin User</p>
-                <p className="text-xs text-muted-foreground">Super Admin</p>
+                <p className="text-sm font-medium">{user?.name || 'Admin User'}</p>
+                <p className="text-xs text-muted-foreground">{user?.role || 'Super Admin'}</p>
               </div>
             </Button>
           </DropdownMenuTrigger>
@@ -55,7 +62,7 @@ export function AdminHeader() {
             <DropdownMenuItem>Profile Settings</DropdownMenuItem>
             <DropdownMenuItem>Preferences</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Sign Out</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">Sign Out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

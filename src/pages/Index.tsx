@@ -8,6 +8,8 @@ import { ProductOversight } from "@/components/admin/ProductOversight";
 import { CustomerSupport } from "@/components/admin/CustomerSupport";
 import { SecurityMonitoring } from "@/components/admin/SecurityMonitoring";
 import { AdminSettings } from "@/components/admin/AdminSettings";
+import { Analytics } from "@/pages/admin/Analytics";
+import { VendorApproval } from "@/pages/admin/VendorApproval";
 
 const Index = () => {
   return (
@@ -19,14 +21,16 @@ const Index = () => {
           <AdminHeader />
           
           <main className="flex-1 p-6 bg-muted/30">
-            <Routes>
-              <Route path="/" element={<DashboardOverview />} />
-              <Route path="/vendors" element={<VendorManagement />} />
-              <Route path="/products" element={<ProductOversight />} />
-              <Route path="/support" element={<CustomerSupport />} />
-              <Route path="/security" element={<SecurityMonitoring />} />
-              <Route path="/settings" element={<AdminSettings />} />
-            </Routes>
+        <Routes>
+          <Route path="/" element={<DashboardOverview />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/vendors" element={<VendorManagement />} />
+          <Route path="/vendor-approval" element={<VendorApproval />} />
+          <Route path="/products" element={<ProductOversight />} />
+          <Route path="/support" element={<CustomerSupport />} />
+          <Route path="/security" element={<SecurityMonitoring />} />
+          <Route path="/settings" element={<AdminSettings />} />
+        </Routes>
           </main>
         </div>
       </div>
