@@ -70,9 +70,9 @@ export default function Signup() {
         {/* Logo Section */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-primary to-dashboard-accent rounded-xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">AC</span>
+            <span className="text-white font-bold text-2xl">AG</span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Afri-Connect UK</h1>
+          <h1 className="text-2xl font-bold text-foreground">AfriGos</h1>
           <p className="text-muted-foreground">Admin Account Request</p>
         </div>
 

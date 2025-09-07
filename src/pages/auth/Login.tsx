@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -16,29 +17,37 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Mock login logic (frontend only)
-    setTimeout(() => {
-      if (email === "admin@africonnect.uk" && password === "admin123") {
+    try {
+      const success = await login(email, password, 'admin');
+      
+      if (success) {
         toast({
           title: "Welcome back!",
-          description: "Successfully logged into Afri-Connect Admin Dashboard",
+          description: "Successfully logged into AfriGos Admin Dashboard",
         });
-        localStorage.setItem("afri-connect-admin", "true");
         navigate("/admin");
       } else {
         toast({
           title: "Login Failed",
-          description: "Invalid email or password. Try admin@africonnect.uk / admin123",
+          description: "Invalid email or password. Try admin@afrigos.com / admin123",
           variant: "destructive",
         });
       }
+    } catch (error) {
+      toast({
+        title: "Login Error",
+        description: "An error occurred during login. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -47,9 +56,9 @@ export default function Login() {
         {/* Logo Section */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-gradient-to-br from-primary to-dashboard-accent rounded-xl mx-auto mb-4 flex items-center justify-center">
-            <span className="text-white font-bold text-2xl">AC</span>
+            <span className="text-white font-bold text-2xl">AG</span>
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Afri-Connect UK</h1>
+          <h1 className="text-2xl font-bold text-foreground">AfriGos</h1>
           <p className="text-muted-foreground">Admin Dashboard</p>
         </div>
 
@@ -69,7 +78,7 @@ export default function Login() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@africonnect.uk"
+                    placeholder="admin@afrigos.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
@@ -126,17 +135,23 @@ export default function Login() {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Demo credentials: admin@africonnect.uk / admin123
+                Demo credentials: admin@afrigos.com / admin123
               </p>
             </div>
           </CardContent>
         </Card>
 
-        <div className="mt-4 text-center">
+        <div className="mt-4 text-center space-y-2">
           <p className="text-sm text-muted-foreground">
             Need admin access?{" "}
             <Link to="/auth/signup" className="text-primary hover:underline">
               Request Account
+            </Link>
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Are you a vendor?{" "}
+            <Link to="/auth/vendor-login" className="text-orange-600 hover:underline font-medium">
+              Vendor Login
             </Link>
           </p>
         </div>

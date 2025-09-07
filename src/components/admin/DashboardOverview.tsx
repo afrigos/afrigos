@@ -9,8 +9,12 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Eye
+  Eye,
+  ShoppingCart
 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const kpiCards = [
   {
@@ -62,17 +66,91 @@ const pendingTasks = [
 ];
 
 export function DashboardOverview() {
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const [isExporting, setIsExporting] = useState(false);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  const handleExportReport = async () => {
+    setIsExporting(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      toast({
+        title: "Report Exported",
+        description: "Dashboard report has been exported successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export report. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleViewAnalytics = async () => {
+    setIsLoadingAnalytics(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      navigate("/admin/analytics");
+    } catch (error) {
+      toast({
+        title: "Navigation Failed",
+        description: "Failed to navigate to analytics. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  };
+
+  const handleQuickAction = (action: string) => {
+    switch (action) {
+      case "vendors":
+        navigate("/admin/vendor-approval");
+        break;
+      case "products":
+        navigate("/admin/product-approval");
+        break;
+      case "orders":
+        navigate("/admin/orders");
+        break;
+      case "analytics":
+        navigate("/admin/analytics");
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Dashboard Overview</h1>
-          <p className="text-muted-foreground">Monitor your Afri-Connect UK marketplace</p>
+          <p className="text-muted-foreground">Monitor your AfriGos marketplace</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm">Export Report</Button>
-          <Button size="sm" className="bg-gradient-to-r from-primary to-dashboard-accent">
-            View Analytics
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExportReport}
+            disabled={isExporting}
+          >
+            {isExporting ? "Exporting..." : "Export Report"}
+          </Button>
+          <Button 
+            size="sm" 
+            className="bg-gradient-to-r from-primary to-dashboard-accent"
+            onClick={handleViewAnalytics}
+            disabled={isLoadingAnalytics}
+          >
+            {isLoadingAnalytics ? "Loading..." : "View Analytics"}
           </Button>
         </div>
       </div>
@@ -185,21 +263,37 @@ export function DashboardOverview() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-20 flex-col space-y-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col space-y-2" 
+              onClick={() => handleQuickAction("vendors")}
+            >
               <Users className="h-6 w-6" />
-              <span className="text-sm">Add Vendor</span>
+              <span className="text-sm">Review Vendors</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col space-y-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col space-y-2" 
+              onClick={() => handleQuickAction("products")}
+            >
               <Package className="h-6 w-6" />
               <span className="text-sm">Review Products</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col space-y-2">
-              <AlertCircle className="h-6 w-6" />
-              <span className="text-sm">Security Alerts</span>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col space-y-2" 
+              onClick={() => handleQuickAction("orders")}
+            >
+              <ShoppingCart className="h-6 w-6" />
+              <span className="text-sm">Manage Orders</span>
             </Button>
-            <Button variant="outline" className="h-20 flex-col space-y-2">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col space-y-2" 
+              onClick={() => handleQuickAction("analytics")}
+            >
               <TrendingUp className="h-6 w-6" />
-              <span className="text-sm">Generate Report</span>
+              <span className="text-sm">View Analytics</span>
             </Button>
           </div>
         </CardContent>

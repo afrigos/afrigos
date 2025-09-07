@@ -4,14 +4,18 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: string;
+  role: 'admin' | 'vendor';
   avatar?: string;
+  vendorId?: string; // For vendor users
+  vendorName?: string; // For vendor users
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
+  isAdmin: boolean;
+  isVendor: boolean;
+  login: (email: string, password: string, userType: 'admin' | 'vendor') => Promise<boolean>;
   logout: () => void;
   loading: boolean;
 }
@@ -33,16 +37,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check if user is logged in on app start
     const checkAuth = () => {
-      const isLoggedIn = localStorage.getItem('afri-connect-admin');
-      if (isLoggedIn === 'true') {
-        // Mock user data (in real app, you'd fetch from API)
-        setUser({
-          id: '1',
-          email: 'admin@africonnect.uk',
-          name: 'Admin User',
-          role: 'Super Admin',
-          avatar: null
-        });
+      const userData = localStorage.getItem('afrigos-user');
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+        } catch (error) {
+          localStorage.removeItem('afrigos-user');
+        }
       }
       setLoading(false);
     };
@@ -50,31 +52,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string, userType: 'admin' | 'vendor'): Promise<boolean> => {
     // Mock login logic (frontend only)
-    if (email === 'admin@africonnect.uk' && password === 'admin123') {
-      const mockUser = {
-        id: '1',
-        email: email,
-        name: 'Admin User',
-        role: 'Super Admin',
-        avatar: null
-      };
-      setUser(mockUser);
-      localStorage.setItem('afri-connect-admin', 'true');
-      return true;
+    if (userType === 'admin') {
+      if (email === 'admin@afrigos.com' && password === 'admin123') {
+        const mockUser: User = {
+          id: '1',
+          email: email,
+          name: 'Admin User',
+          role: 'admin',
+          avatar: null
+        };
+        setUser(mockUser);
+        localStorage.setItem('afrigos-user', JSON.stringify(mockUser));
+        return true;
+      }
+    } else if (userType === 'vendor') {
+      // Mock vendor login - in real app, this would validate against vendor database
+      if (email === 'mamaasha@afrigos.com' && password === 'vendor123') {
+        const mockVendor: User = {
+          id: 'V001',
+          email: email,
+          name: 'Mama Asha',
+          role: 'vendor',
+          vendorId: 'V001',
+          vendorName: "Mama Asha's Kitchen",
+          avatar: null
+        };
+        setUser(mockVendor);
+        localStorage.setItem('afrigos-user', JSON.stringify(mockVendor));
+        return true;
+      }
+      // Additional mock vendors
+      if (email === 'adunni@afrigos.com' && password === 'vendor123') {
+        const mockVendor: User = {
+          id: 'V002',
+          email: email,
+          name: 'Adunni Beauty',
+          role: 'vendor',
+          vendorId: 'V002',
+          vendorName: 'Adunni Beauty',
+          avatar: null
+        };
+        setUser(mockVendor);
+        localStorage.setItem('afrigos-user', JSON.stringify(mockVendor));
+        return true;
+      }
     }
     return false;
   };
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('afri-connect-admin');
+    localStorage.removeItem('afrigos-user');
   };
 
   const value = {
     user,
     isAuthenticated: !!user,
+    isAdmin: user?.role === 'admin',
+    isVendor: user?.role === 'vendor',
     login,
     logout,
     loading

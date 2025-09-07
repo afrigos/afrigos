@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { Pagination } from "@/components/ui/pagination";
 import { 
   Table,
   TableBody,
@@ -30,7 +32,6 @@ import {
   Star,
   AlertTriangle
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 
 const pendingVendors = [
   {
@@ -89,34 +90,234 @@ const pendingVendors = [
     },
     status: "pending",
     riskScore: "low"
+  },
+  {
+    id: "VA004",
+    name: "Nigerian Spices Co",
+    email: "info@nigerianspices.co.uk",
+    phone: "+44 20 7890 5678",
+    location: "London, UK",
+    category: "Food",
+    appliedDate: "2024-01-19",
+    businessType: "Food Supplier",
+    description: "Premium Nigerian spices and seasonings",
+    documents: {
+      businessLicense: "complete",
+      insurance: "complete",
+      bankDetails: "complete",
+      identification: "complete"
+    },
+    status: "pending",
+    riskScore: "low"
+  },
+  {
+    id: "VA005",
+    name: "Kente Collections",
+    email: "hello@kentecollections.uk",
+    phone: "+44 161 567 1234",
+    location: "Manchester, UK",
+    category: "Clothing",
+    appliedDate: "2024-01-21",
+    businessType: "Fashion Retailer",
+    description: "Traditional Kente cloth and African fashion",
+    documents: {
+      businessLicense: "complete",
+      insurance: "pending",
+      bankDetails: "complete",
+      identification: "complete"
+    },
+    status: "pending",
+    riskScore: "medium"
+  },
+  {
+    id: "VA006",
+    name: "Afro Herbs Ltd",
+    email: "contact@afroherbs.com",
+    phone: "+44 121 345 1234",
+    location: "Birmingham, UK",
+    category: "Herbal",
+    appliedDate: "2024-01-17",
+    businessType: "Health Products",
+    description: "Traditional African herbal remedies",
+    documents: {
+      businessLicense: "complete",
+      insurance: "complete",
+      bankDetails: "pending",
+      identification: "complete"
+    },
+    status: "review",
+    riskScore: "medium"
+  },
+  {
+    id: "VA007",
+    name: "Mama Asha's Kitchen",
+    email: "mamaasha@kitchen.co.uk",
+    phone: "+44 20 7890 9999",
+    location: "London, UK",
+    category: "Food",
+    appliedDate: "2024-01-23",
+    businessType: "Restaurant",
+    description: "Home-cooked Nigerian meals",
+    documents: {
+      businessLicense: "complete",
+      insurance: "complete",
+      bankDetails: "complete",
+      identification: "pending"
+    },
+    status: "pending",
+    riskScore: "low"
+  },
+  {
+    id: "VA008",
+    name: "Adunni Beauty",
+    email: "info@adunnibeauty.uk",
+    phone: "+44 161 567 8888",
+    location: "Manchester, UK",
+    category: "Beauty",
+    appliedDate: "2024-01-16",
+    businessType: "Beauty Products",
+    description: "Natural African beauty products",
+    documents: {
+      businessLicense: "complete",
+      insurance: "complete",
+      bankDetails: "complete",
+      identification: "complete"
+    },
+    status: "pending",
+    riskScore: "low"
+  },
+  {
+    id: "VA009",
+    name: "Spice Masters",
+    email: "hello@spicemasters.co.uk",
+    phone: "+44 121 345 7777",
+    location: "Birmingham, UK",
+    category: "Food",
+    appliedDate: "2024-01-24",
+    businessType: "Food Supplier",
+    description: "Premium African spice blends",
+    documents: {
+      businessLicense: "complete",
+      insurance: "pending",
+      bankDetails: "complete",
+      identification: "complete"
+    },
+    status: "pending",
+    riskScore: "medium"
+  },
+  {
+    id: "VA010",
+    name: "African Crafts Co",
+    email: "info@africancrafts.uk",
+    phone: "+44 20 7890 6666",
+    location: "London, UK",
+    category: "Crafts",
+    appliedDate: "2024-01-15",
+    businessType: "Crafts Retailer",
+    description: "Traditional African crafts and artifacts",
+    documents: {
+      businessLicense: "complete",
+      insurance: "complete",
+      bankDetails: "pending",
+      identification: "complete"
+    },
+    status: "review",
+    riskScore: "low"
   }
 ];
 
 export function VendorApproval() {
   const [selectedVendor, setSelectedVendor] = useState<any>(null);
   const [reviewNote, setReviewNote] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
+  const [isLoading, setIsLoading] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
   const { toast } = useToast();
 
-  const handleApprove = (vendorId: string) => {
-    toast({
-      title: "Vendor Approved",
-      description: `${vendorId} has been approved and notified via email.`,
-    });
+  const handleApprove = async (vendorId: string) => {
+    setIsLoading(vendorId);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast({
+        title: "Vendor Approved",
+        description: `${vendorId} has been approved and notified via email.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Approval Failed",
+        description: "Failed to approve vendor. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(null);
+    }
   };
 
-  const handleReject = (vendorId: string) => {
-    toast({
-      title: "Vendor Rejected", 
-      description: `${vendorId} has been rejected. Rejection reason sent via email.`,
-      variant: "destructive",
-    });
+  const handleReject = async (vendorId: string) => {
+    setIsLoading(vendorId);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast({
+        title: "Vendor Rejected", 
+        description: `${vendorId} has been rejected. Rejection reason sent via email.`,
+        variant: "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Rejection Failed",
+        description: "Failed to reject vendor. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(null);
+    }
   };
 
-  const handleRequestMore = (vendorId: string) => {
-    toast({
-      title: "Additional Info Requested",
-      description: `Request for more information sent to ${vendorId}.`,
-    });
+  const handleRequestMore = async (vendorId: string) => {
+    setIsLoading(vendorId);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      toast({
+        title: "Additional Info Requested",
+        description: `Request for more information sent to ${vendorId}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Request Failed",
+        description: "Failed to send request. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(null);
+    }
+  };
+
+  const handleExportReport = async () => {
+    setIsExporting(true);
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      toast({
+        title: "Report Exported",
+        description: "Vendor approval report has been exported successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export report. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -160,6 +361,16 @@ export function VendorApproval() {
     }
   };
 
+  // Pagination logic
+  const totalPages = Math.ceil(pendingVendors.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentVendors = pendingVendors.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -168,9 +379,14 @@ export function VendorApproval() {
           <p className="text-muted-foreground">Review and approve new vendor applications</p>
         </div>
         <div className="flex space-x-2">
-          <Button variant="outline" size="sm">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={handleExportReport}
+            disabled={isExporting}
+          >
             <Download className="h-4 w-4 mr-2" />
-            Export Report
+            {isExporting ? "Exporting..." : "Export Report"}
           </Button>
         </div>
       </div>
@@ -253,7 +469,7 @@ export function VendorApproval() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pendingVendors.filter(v => v.status === "pending").map((vendor) => (
+                  {currentVendors.filter(v => v.status === "pending").map((vendor) => (
                     <TableRow key={vendor.id}>
                       <TableCell>
                         <div className="space-y-1">
@@ -394,22 +610,25 @@ export function VendorApproval() {
                                     <Button 
                                       onClick={() => handleApprove(selectedVendor.id)}
                                       className="bg-success text-success-foreground hover:bg-success/90"
+                                      disabled={isLoading === selectedVendor.id}
                                     >
                                       <CheckCircle className="h-4 w-4 mr-2" />
-                                      Approve Vendor
+                                      {isLoading === selectedVendor.id ? "Processing..." : "Approve Vendor"}
                                     </Button>
                                     <Button 
                                       onClick={() => handleRequestMore(selectedVendor.id)}
                                       variant="outline"
+                                      disabled={isLoading === selectedVendor.id}
                                     >
-                                      Request More Info
+                                      {isLoading === selectedVendor.id ? "Processing..." : "Request More Info"}
                                     </Button>
                                     <Button 
                                       onClick={() => handleReject(selectedVendor.id)}
                                       variant="destructive"
+                                      disabled={isLoading === selectedVendor.id}
                                     >
                                       <XCircle className="h-4 w-4 mr-2" />
-                                      Reject
+                                      {isLoading === selectedVendor.id ? "Processing..." : "Reject"}
                                     </Button>
                                   </div>
                                 </div>
@@ -420,6 +639,7 @@ export function VendorApproval() {
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleApprove(vendor.id)}
+                            disabled={isLoading === vendor.id}
                           >
                             <CheckCircle className="h-4 w-4 text-success" />
                           </Button>
@@ -427,6 +647,7 @@ export function VendorApproval() {
                             variant="ghost" 
                             size="sm"
                             onClick={() => handleReject(vendor.id)}
+                            disabled={isLoading === vendor.id}
                           >
                             <XCircle className="h-4 w-4 text-destructive" />
                           </Button>
@@ -436,6 +657,13 @@ export function VendorApproval() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                totalItems={pendingVendors.filter(v => v.status === "pending").length}
+                itemsPerPage={itemsPerPage}
+              />
             </CardContent>
           </Card>
         </TabsContent>

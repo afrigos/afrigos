@@ -56,18 +56,18 @@ export function AdminSettings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="platform-name">Platform Name</Label>
-                    <Input id="platform-name" defaultValue="Afri-Connect UK" />
+                    <Input id="platform-name" defaultValue="AfriGos" />
                   </div>
                   <div>
                     <Label htmlFor="admin-email">Admin Email</Label>
-                    <Input id="admin-email" defaultValue="admin@afri-connect.uk" />
+                    <Input id="admin-email" defaultValue="admin@afrigos.com" />
                   </div>
                 </div>
                 <div>
                   <Label htmlFor="platform-description">Platform Description</Label>
                   <Input 
                     id="platform-description" 
-                    defaultValue="Authentic African marketplace connecting UK consumers with African vendors"
+                    defaultValue="Authentic African marketplace connecting consumers with African vendors"
                   />
                 </div>
                 <div className="flex items-center space-x-2">

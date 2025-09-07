@@ -1,73 +1,112 @@
-# Welcome to your Lovable project
+# AfriGos Admin Dashboard
 
-## Project info
+A comprehensive admin dashboard for the AfriGos marketplace platform, built with React, TypeScript, and shadcn/ui.
 
-**URL**: https://lovable.dev/projects/42ce9198-e563-4444-adf0-33a355106eef
+## Features
 
-## How can I edit this code?
+- **Dashboard Overview** - Monitor marketplace metrics and performance
+- **Vendor Management** - Review and approve vendor applications
+- **Product Oversight** - Manage product listings and approvals
+- **Order Management** - Track and manage customer orders
+- **Customer Support** - Handle support tickets and inquiries
+- **Analytics & Reporting** - View detailed analytics and generate reports
+- **Security Monitoring** - Monitor platform security and compliance
+- **Settings Management** - Configure platform settings
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: React 18, TypeScript, Vite
+- **UI Components**: shadcn/ui, Tailwind CSS
+- **Routing**: React Router DOM
+- **State Management**: React Query, Context API
+- **Backend**: Express.js (API server)
+- **Authentication**: JWT-based auth system
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/42ce9198-e563-4444-adf0-33a355106eef) and start prompting.
+## Quick Start
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Installation
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+# Clone the repository
+git clone <repository-url>
+cd afrigos
 
-Follow these steps:
+# Install dependencies
+npm install
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server (frontend only)
 npm run dev
+
+# Start API server only
+npm run server
+
+# Start both frontend and API server
+npm run dev:full
 ```
 
-**Edit a file directly in GitHub**
+### Development
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+- **Frontend**: http://localhost:8083
+- **API Server**: http://localhost:3002
+- **API Health Check**: http://localhost:3002/api/v1/health
 
-**Use GitHub Codespaces**
+## API Endpoints
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### Version 1 (`/api/v1`)
 
-## What technologies are used for this project?
+- `GET /health` - Health check
+- `GET /dashboard/stats` - Dashboard statistics
+- `GET /vendors/pending` - Pending vendor applications
+- `GET /products/pending` - Pending product approvals
 
-This project is built with:
+## Project Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```
+afrigos/
+├── src/
+│   ├── components/
+│   │   ├── admin/          # Admin dashboard components
+│   │   └── ui/             # Reusable UI components
+│   ├── pages/
+│   │   ├── admin/          # Admin page components
+│   │   └── auth/           # Authentication pages
+│   ├── contexts/           # React contexts
+│   ├── hooks/              # Custom hooks
+│   └── lib/                # Utility functions
+├── server/                 # Express.js API server
+└── public/                 # Static assets
+```
 
-## How can I deploy this project?
+## Authentication
 
-Simply open [Lovable](https://lovable.dev/projects/42ce9198-e563-4444-adf0-33a355106eef) and click on Share -> Publish.
+The dashboard uses a mock authentication system for development:
 
-## Can I connect a custom domain to my Lovable project?
+- **Email**: admin@afrigos.com
+- **Password**: admin123
 
-Yes, you can!
+## Deployment
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Production Build
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+```bash
+npm run build
+```
+
+### API Server
+
+The Express.js server can be deployed separately or alongside the frontend.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is proprietary software for AfriGos marketplace.

@@ -7,7 +7,14 @@ import {
   Settings,
   Home,
   TrendingUp,
-  AlertTriangle
+  AlertTriangle,
+  ShoppingCart,
+  Tag,
+  DollarSign,
+  Bell,
+  UserCog,
+  Percent,
+  PieChart
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -22,16 +29,27 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 
-const navigationItems = [
-  { title: "Dashboard", url: "/", icon: Home },
-  { title: "Analytics", url: "/analytics", icon: BarChart3 },
-  { title: "Vendors", url: "/vendors", icon: Users },
-  { title: "Vendor Approval", url: "/vendor-approval", icon: TrendingUp },
-  { title: "Products", url: "/products", icon: Package },
-  { title: "Support", url: "/support", icon: MessageSquare },
-  { title: "Security", url: "/security", icon: Shield },
-  { title: "Settings", url: "/settings", icon: Settings },
-];
+  const navigationItems = [
+    { title: "Dashboard", url: "", icon: Home },
+    { title: "Analytics", url: "analytics", icon: BarChart3 },
+    { title: "Advanced Analytics", url: "advanced-analytics", icon: TrendingUp },
+    { title: "Orders", url: "orders", icon: ShoppingCart },
+    { title: "Vendors", url: "vendors", icon: Users },
+    { title: "Vendor Approval", url: "vendor-approval", icon: TrendingUp },
+    { title: "Products", url: "products", icon: Package },
+    { title: "Product Approval", url: "product-approval", icon: AlertTriangle },
+    { title: "Categories", url: "categories", icon: Tag },
+    { title: "Customers", url: "customers", icon: Users },
+    { title: "Financial", url: "financial", icon: DollarSign },
+    { title: "Platform Financial", url: "platform-financial", icon: DollarSign },
+    { title: "Commission", url: "commission", icon: Percent },
+    { title: "Vendor Sales", url: "vendor-sales", icon: PieChart },
+    { title: "Notifications", url: "notifications", icon: Bell },
+    { title: "Admin Users", url: "admin-users", icon: UserCog },
+    { title: "Support", url: "support", icon: MessageSquare },
+    { title: "Security", url: "security", icon: Shield },
+    { title: "Settings", url: "settings", icon: Settings },
+  ];
 
 const quickStats = [
   { label: "Active Vendors", value: "1,247", trend: "+12%", color: "text-success" },
@@ -45,30 +63,29 @@ export function AdminSidebar() {
   const currentPath = location.pathname;
   const collapsed = state === "collapsed";
 
-  const isActive = (path: string) => currentPath === path;
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
       ? "bg-primary/10 text-primary font-medium border-r-2 border-primary" 
       : "hover:bg-muted/50 text-muted-foreground hover:text-foreground";
 
   return (
-    <Sidebar className={`${collapsed ? "w-16" : "w-72"} border-r bg-card`} collapsible="icon">
+    <Sidebar className={`${collapsed ? "w-16" : "w-64"} border-r bg-card`} collapsible="icon">
       <SidebarContent className="p-4">
         {/* Logo */}
         <div className="mb-8">
           {!collapsed ? (
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 bg-gradient-to-br from-primary to-dashboard-accent rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">AC</span>
+                <span className="text-white font-bold text-lg">AG</span>
               </div>
               <div>
-                <h2 className="font-bold text-lg text-foreground">Afri-Connect</h2>
+                <h2 className="font-bold text-lg text-foreground">AfriGos</h2>
                 <p className="text-xs text-muted-foreground">Admin Dashboard</p>
               </div>
             </div>
           ) : (
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-dashboard-accent rounded-lg flex items-center justify-center mx-auto">
-              <span className="text-white font-bold text-lg">AC</span>
+              <span className="text-white font-bold text-lg">AG</span>
             </div>
           )}
         </div>
@@ -83,7 +100,7 @@ export function AdminSidebar() {
               {navigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild className="w-full">
-                    <NavLink to={item.url} end className={getNavCls}>
+                    <NavLink to={item.url} end={item.url === ""} className={getNavCls}>
                       <item.icon className={`h-5 w-5 ${collapsed ? "mx-auto" : "mr-3"}`} />
                       {!collapsed && <span className="font-medium">{item.title}</span>}
                     </NavLink>
