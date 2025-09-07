@@ -31,7 +31,7 @@ export default function Login() {
           title: "Welcome back!",
           description: "Successfully logged into AfriGos Admin Dashboard",
         });
-        navigate("/admin");
+        navigate("/admin/dashboard");
       } else {
         toast({
           title: "Login Failed",

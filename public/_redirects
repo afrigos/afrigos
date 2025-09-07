@@ -1,0 +1,23 @@
+# Netlify redirects for SPA routing
+# This ensures all routes are handled by the React app
+
+# Handle all routes that don't match static files
+/*    /index.html   200
+
+# Handle specific auth routes
+/auth/login    /index.html   200
+/auth/vendor-login    /index.html   200
+/auth/signup    /index.html   200
+/auth/forgot-password    /index.html   200
+
+# Handle admin routes
+/admin/*    /index.html   200
+
+# Handle vendor routes  
+/vendor/*    /index.html   200
+
+# Handle public routes
+/track    /index.html   200
+
+# Fallback for any other routes
+/*    /index.html   200

@@ -12,23 +12,24 @@ import OrderTracking from "./pages/OrderTracking";
 import Signup from "./pages/auth/Signup";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { AuthRedirect } from "./components/AuthRedirect";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <>{children}</> : <Navigate to="/auth/login" />;
+  return isAuthenticated ? <>{children}</> : <Navigate to="/auth/login" replace />;
 };
 
 // Vendor Protected Route Component
 const VendorProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isVendor } = useAuth();
-  return isAuthenticated && isVendor ? <>{children}</> : <Navigate to="/auth/vendor-login" />;
+  return isAuthenticated && isVendor ? <>{children}</> : <Navigate to="/auth/vendor-login" replace />;
 };
 
 // Admin Protected Route Component
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isAdmin } = useAuth();
-  return isAuthenticated && isAdmin ? <>{children}</> : <Navigate to="/auth/login" />;
+  return isAuthenticated && isAdmin ? <>{children}</> : <Navigate to="/auth/login" replace />;
 };
 
 const queryClient = new QueryClient();
@@ -57,7 +58,7 @@ const App = () => (
             <Route path="/vendor/*" element={<VendorProtectedRoute><VendorLayout /></VendorProtectedRoute>} />
             
             {/* Default Route */}
-            <Route path="/" element={<Navigate to="/auth/login" />} />
+            <Route path="/" element={<AuthRedirect />} />
             
             {/* Catch-all route */}
             <Route path="*" element={<NotFound />} />
