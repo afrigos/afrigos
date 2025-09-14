@@ -71,6 +71,12 @@ const vendorNavItems = [
     description: "Detailed business reports"
   },
   {
+    title: "Shopping",
+    href: "/vendor/shopping",
+    icon: ShoppingCart,
+    description: "Browse marketplace and analyze competitors"
+  },
+  {
     title: "Profile",
     href: "/vendor/profile",
     icon: User,

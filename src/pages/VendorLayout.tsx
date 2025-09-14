@@ -7,6 +7,10 @@ import { VendorProductManagement } from "@/components/vendor/VendorProductManage
 import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
 import { VendorEarnings } from "@/components/vendor/VendorEarnings";
 import { VendorReviews } from "@/components/vendor/VendorReviews";
+import { VendorProfile } from "@/components/vendor/VendorProfile";
+import { VendorReports } from "@/components/vendor/VendorReports";
+import { VendorShopping } from "@/components/vendor/VendorShopping";
+import { VendorShipping } from "@/components/vendor/VendorShipping";
 
 const VendorLayout = () => {
   return (
@@ -21,15 +25,15 @@ const VendorLayout = () => {
             <Routes>
               <Route index element={<VendorDashboard />} />
               <Route path="dashboard" element={<VendorDashboard />} />
-              {/* Additional vendor routes will be added here */}
               <Route path="orders" element={<VendorOrderManagement />} />
               <Route path="products" element={<VendorProductManagement />} />
               <Route path="analytics" element={<VendorAnalytics />} />
               <Route path="earnings" element={<VendorEarnings />} />
               <Route path="reviews" element={<VendorReviews />} />
-              <Route path="shipping" element={<div>Vendor Shipping (Coming Soon)</div>} />
-              <Route path="reports" element={<div>Vendor Reports (Coming Soon)</div>} />
-              <Route path="profile" element={<div>Vendor Profile (Coming Soon)</div>} />
+              <Route path="reports" element={<VendorReports />} />
+              <Route path="profile" element={<VendorProfile />} />
+              <Route path="shopping" element={<VendorShopping />} />
+              <Route path="shipping" element={<VendorShipping />} />
             </Routes>
           </div>
         </main>
