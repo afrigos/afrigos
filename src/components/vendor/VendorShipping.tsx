@@ -363,7 +363,15 @@ export function VendorShipping() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline">
+          <Button 
+            variant="outline"
+            onClick={() => {
+              toast({
+                title: "Settings",
+                description: "Opening shipping settings configuration.",
+              });
+            }}
+          >
             <Settings className="h-4 w-4 mr-2" />
             Settings
           </Button>
@@ -870,6 +878,12 @@ export function VendorShipping() {
                   <input 
                     type="checkbox" 
                     checked={shippingData.shippingSettings.autoCalculateRates}
+                    onChange={() => {
+                      toast({
+                        title: "Settings Updated",
+                        description: "Auto-calculate shipping rates setting toggled.",
+                      });
+                    }}
                     className="rounded"
                   />
                   <label className="text-sm">Auto-calculate shipping rates</label>
@@ -878,6 +892,12 @@ export function VendorShipping() {
                   <input 
                     type="checkbox" 
                     checked={shippingData.shippingSettings.allowInternational}
+                    onChange={() => {
+                      toast({
+                        title: "Settings Updated",
+                        description: "International shipping setting toggled.",
+                      });
+                    }}
                     className="rounded"
                   />
                   <label className="text-sm">Allow international shipping</label>
@@ -896,10 +916,29 @@ export function VendorShipping() {
                     <div key={option} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
                       <span className="font-medium">{option}</span>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            toast({
+                              title: "Edit Packaging",
+                              description: `Editing ${option} - Feature coming soon!`,
+                            });
+                          }}
+                        >
                           <Edit className="h-3 w-3" />
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => {
+                            toast({
+                              title: "Delete Packaging",
+                              description: `Are you sure you want to delete ${option}?`,
+                              variant: "destructive",
+                            });
+                          }}
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
