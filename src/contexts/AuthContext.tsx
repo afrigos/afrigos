@@ -8,6 +8,8 @@ interface User {
   avatar?: string;
   vendorId?: string; // For vendor users
   vendorName?: string; // For vendor users
+  isActive?: boolean; // User's active status
+  isVerified?: boolean; // User's verified status
 }
 
 interface AuthContextType {
@@ -18,6 +20,7 @@ interface AuthContextType {
   login: (email: string, password: string, userType: 'admin' | 'vendor') => Promise<boolean>;
   logout: () => void;
   loading: boolean;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -114,7 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isVendor: user?.role === 'vendor',
     login,
     logout,
-    loading
+    loading,
+    setUser
   };
 
   return (
