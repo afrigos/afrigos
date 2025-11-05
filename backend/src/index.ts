@@ -66,15 +66,29 @@ app.use(helmet({
 app.use(compression());
 app.use(morgan('combined'));
 app.use(limiter);
-// CORS configuration
-const allowedOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map((origin: string) => origin.trim())
-  : ["http://localhost:8083", "http://localhost:8084", "http://localhost:3000"];
+// CORS configuration - Allowed origins
+const defaultOrigins = [
+  "http://localhost:8083",
+  "http://localhost:8084", 
+  "http://localhost:3000",
+  "https://afrigos-production.netlify.app",
+  "https://afrigos.netlify.app",
+  "https://www.afrigos.com",
+  "https://afrigos.com"
+];
 
-// Add Netlify URL if FRONTEND_URL is set
-if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
+// Add origins from environment variable if set
+const envOrigins = process.env.CORS_ORIGIN 
+  ? process.env.CORS_ORIGIN.split(',').map((origin: string) => origin.trim())
+  : [];
+
+// Add FRONTEND_URL if set
+if (process.env.FRONTEND_URL && !envOrigins.includes(process.env.FRONTEND_URL)) {
+  envOrigins.push(process.env.FRONTEND_URL);
 }
+
+// Combine all allowed origins
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 app.use(cors({
   origin: (origin, callback) => {
