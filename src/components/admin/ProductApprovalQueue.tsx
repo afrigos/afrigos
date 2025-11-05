@@ -32,8 +32,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
-const API_BASE_URL = 'http://localhost:3002/api/v1';
+import { API_BASE_URL } from '@/lib/api-config';
 
 // Types
 interface Product {

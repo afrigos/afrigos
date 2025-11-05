@@ -31,8 +31,7 @@ import {
   DollarSign
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:3002/api/v1';
-const BACKEND_URL = 'http://localhost:3002';
+import { API_BASE_URL, BACKEND_URL } from '@/lib/api-config';
 
 // Helper function to get full image URL
 const getImageUrl = (imagePath: string) => {

@@ -8,8 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Store, ArrowLeft, Mail, Lock, User, Phone } from "lucide-react";
 import { useMutation } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-
-const API_BASE_URL = 'http://localhost:3002/api/v1';
+import { API_BASE_URL } from '@/lib/api-config';
 
 interface SignupData {
   email: string;

@@ -10,8 +10,7 @@ import { Store, Eye, EyeOff, ArrowLeft, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-
-const API_BASE_URL = 'http://localhost:3002/api/v1';
+import { API_BASE_URL } from '@/lib/api-config';
 
 interface LoginData {
   email: string;

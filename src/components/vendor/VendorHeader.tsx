@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
-const API_BASE_URL = 'http://localhost:3002/api/v1';
+import { API_BASE_URL } from '@/lib/api-config';
 
 interface VendorDashboardData {
   overview: {

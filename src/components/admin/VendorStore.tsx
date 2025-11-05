@@ -19,8 +19,7 @@ import {
   DollarSign,
   Calendar
 } from 'lucide-react';
-
-const API_BASE_URL = 'http://localhost:3002/api/v1';
+import { API_BASE_URL, BACKEND_URL } from '@/lib/api-config';
 
 interface Vendor {
   id: string;
@@ -173,7 +172,7 @@ export default function VendorStore() {
     if (imagePath.startsWith('http')) {
       return imagePath;
     }
-    return `http://localhost:3002/${imagePath}`;
+    return `${BACKEND_URL}/${imagePath}`;
   };
 
   if (vendorLoading) {
