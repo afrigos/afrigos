@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,78 +24,52 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 
-// Mock data for vendor dashboard
-const vendorData = {
+const API_BASE_URL = 'http://localhost:3002/api/v1';
+
+interface VendorDashboardData {
   overview: {
-    totalRevenue: 12450,
-    totalOrders: 156,
-    totalProducts: 24,
-    avgRating: 4.8,
-    growthRate: 12.5,
-    orderGrowth: 8.2,
-    productGrowth: 15.3,
-    ratingGrowth: 0.2
-  },
-  recentOrders: [
-    {
-      id: "ORD001",
-      customer: "Sarah Johnson",
-      products: ["Jollof Rice Spice Mix", "Plantain Chips"],
-      total: "£34.48",
-      status: "processing",
-      date: "2024-01-20",
-      time: "14:30"
-    },
-    {
-      id: "ORD002",
-      customer: "Michael Chen",
-      products: ["Shea Butter Hair Care Set"],
-      total: "£24.99",
-      status: "confirmed",
-      date: "2024-01-20",
-      time: "13:15"
-    },
-    {
-      id: "ORD003",
-      customer: "Emma Wilson",
-      products: ["Traditional Kente Cloth Scarf"],
-      total: "£89.99",
-      status: "ready_for_handover",
-      date: "2024-01-20",
-      time: "12:45"
+    totalRevenue: number;
+    totalOrders: number;
+    totalProducts: number;
+    avgRating: number;
+    growthRate: number;
+    orderGrowth: number;
+    productGrowth: number;
+    ratingGrowth: number;
+  };
+  recentOrders: Array<{
+    id: string;
+    customer: string;
+    products: string[];
+    total: string;
+    status: string;
+    date: string;
+    time: string;
+  }>;
+  topProducts: Array<{
+    name: string;
+    sales: number;
+    revenue: number;
+    rating: number;
+    growth: number;
+  }>;
+  orderStatuses: Record<string, number>;
+}
+
+// API function to fetch vendor dashboard data
+const fetchVendorDashboardData = async (): Promise<VendorDashboardData> => {
+  const response = await fetch(`${API_BASE_URL}/vendor/dashboard`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
     }
-  ],
-  topProducts: [
-    {
-      name: "Jollof Rice Spice Mix",
-      sales: 234,
-      revenue: 3036.66,
-      rating: 4.8,
-      growth: 15.2
-    },
-    {
-      name: "Plantain Chips",
-      sales: 189,
-      revenue: 1606.50,
-      rating: 4.6,
-      growth: 8.5
-    },
-    {
-      name: "Shea Butter Hair Care Set",
-      sales: 156,
-      revenue: 3898.44,
-      rating: 4.9,
-      growth: 22.1
-    }
-  ],
-  orderStatuses: {
-    new: 5,
-    confirmed: 8,
-    processing: 12,
-    ready_for_handover: 6,
-    in_transit: 3,
-    delivered: 122
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch vendor dashboard data');
   }
+
+  const result = await response.json();
+  return result.data;
 };
 
 const getStatusColor = (status: string) => {
@@ -124,7 +99,13 @@ const getStatusIcon = (status: string) => {
 export function VendorDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch vendor dashboard data using TanStack Query
+  const { data: vendorData, isLoading, error } = useQuery<VendorDashboardData, Error>({
+    queryKey: ['vendor-dashboard'],
+    queryFn: fetchVendorDashboardData,
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-GB', {
@@ -147,6 +128,53 @@ export function VendorDashboard() {
       description: `${action} action has been started.`,
     });
   };
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <span>Loading dashboard data...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Failed to load dashboard</h3>
+            <p className="text-muted-foreground mb-4">{error.message}</p>
+            <Button onClick={() => window.location.reload()}>
+              Try Again
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state if no data
+  if (!vendorData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No data available</h3>
+            <p className="text-muted-foreground">Start by adding your first product!</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -246,15 +274,22 @@ export function VendorDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(vendorData.orderStatuses).map(([status, count]) => (
-                    <div key={status} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        {getStatusIcon(status)}
-                        <span className="capitalize font-medium">{status.replace('_', ' ')}</span>
+                  {Object.entries(vendorData.orderStatuses).length > 0 ? (
+                    Object.entries(vendorData.orderStatuses).map(([status, count]) => (
+                      <div key={status} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                        <div className="flex items-center space-x-3">
+                          {getStatusIcon(status)}
+                          <span className="capitalize font-medium">{status.replace('_', ' ')}</span>
+                        </div>
+                        <Badge variant="secondary">{count}</Badge>
                       </div>
-                      <Badge variant="secondary">{count}</Badge>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ShoppingCart className="h-8 w-8 mx-auto mb-2" />
+                      <p>No orders yet</p>
                     </div>
-                  ))}
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -314,7 +349,8 @@ export function VendorDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {vendorData.recentOrders.map((order) => (
+                {vendorData.recentOrders.length > 0 ? (
+                  vendorData.recentOrders.map((order) => (
                   <div key={order.id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
@@ -337,7 +373,13 @@ export function VendorDashboard() {
                       </Badge>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <ShoppingCart className="h-8 w-8 mx-auto mb-2" />
+                    <p>No recent orders</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -352,7 +394,8 @@ export function VendorDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {vendorData.topProducts.map((product, index) => (
+                {vendorData.topProducts.length > 0 ? (
+                  vendorData.topProducts.map((product, index) => (
                   <div key={product.name} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
@@ -377,7 +420,14 @@ export function VendorDashboard() {
                       </p>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2" />
+                    <p>No products yet</p>
+                    <p className="text-sm">Add your first product to see it here</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

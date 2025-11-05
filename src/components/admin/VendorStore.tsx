@@ -13,15 +13,12 @@ import {
   TrendingUp,
   Eye,
   Search,
+  Filter,
   ShoppingBag,
   Users,
   DollarSign,
-  Calendar,
-  CheckCircle,
-  Clock,
-  XCircle
+  Calendar
 } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
 const API_BASE_URL = 'http://localhost:3002/api/v1';
 
@@ -100,14 +97,10 @@ const fetchVendorProducts = async (vendorId: string): Promise<{ success: boolean
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    console.error('Vendor products API error:', errorData);
     throw new Error('Failed to fetch vendor products');
   }
 
-  const result = await response.json();
-  console.log('Vendor products API response:', result);
-  return result;
+  return response.json();
 };
 
 const fetchVendorStats = async (vendorId: string): Promise<{ success: boolean; data: VendorStats }> => {
@@ -119,36 +112,16 @@ const fetchVendorStats = async (vendorId: string): Promise<{ success: boolean; d
   });
 
   if (!response.ok) {
-    const errorData = await response.json();
-    console.error('Vendor stats API error:', errorData);
     throw new Error('Failed to fetch vendor stats');
   }
 
-  const result = await response.json();
-  console.log('Vendor stats API response:', result);
-  return result;
+  return response.json();
 };
 
-export function VendorStore() {
+export default function VendorStore() {
   const { vendorId } = useParams<{ vendorId: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Redirect if no vendorId
-  if (!vendorId) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">Vendor ID is missing</p>
-          <Button onClick={() => navigate('/admin/vendors')}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Vendors
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   // Fetch vendor details
   const { data: vendorData, isLoading: vendorLoading, error: vendorError } = useQuery({
@@ -172,14 +145,13 @@ export function VendorStore() {
   });
 
   const vendor = vendorData?.data;
-  const products = Array.isArray(productsData?.data) ? productsData.data : [];
+  const products = productsData?.data || [];
   const stats = statsData?.data;
 
   // Filter products based on search term
   const filteredProducts = products.filter(product =>
-    product && product.name && product.description &&
-    (product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    product.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    product.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStatusBadge = (status: string) => {
@@ -249,7 +221,7 @@ export function VendorStore() {
       </div>
 
       {/* Vendor Info Card */}
-        <Card>
+      <Card>
         <CardHeader>
           <CardTitle>Vendor Information</CardTitle>
         </CardHeader>
@@ -287,7 +259,7 @@ export function VendorStore() {
                 <span className="text-sm text-muted-foreground">Category</span>
                 <Badge variant="outline">{vendor.category}</Badge>
               </div>
-            <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">Joined</span>
                 <span className="text-sm">{new Date(vendor.createdAt).toLocaleDateString()}</span>
               </div>
@@ -302,14 +274,14 @@ export function VendorStore() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
-                      <div>
+                <div>
                   <p className="text-sm text-muted-foreground">Total Products</p>
                   <p className="text-2xl font-bold">{stats.totalProducts}</p>
-                      </div>
+                </div>
                 <Package className="h-8 w-8 text-orange-600" />
-                    </div>
-        </CardContent>
-      </Card>
+              </div>
+            </CardContent>
+          </Card>
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -327,7 +299,7 @@ export function VendorStore() {
                 <div>
                   <p className="text-sm text-muted-foreground">Total Revenue</p>
                   <p className="text-2xl font-bold">£{stats.totalRevenue.toFixed(2)}</p>
-            </div>
+                </div>
                 <DollarSign className="h-8 w-8 text-green-600" />
               </div>
             </CardContent>
@@ -335,15 +307,15 @@ export function VendorStore() {
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
-                  <div>
+                <div>
                   <p className="text-sm text-muted-foreground">Average Rating</p>
                   <p className="text-2xl font-bold">{stats.avgRating.toFixed(1)}</p>
                 </div>
                 <Star className="h-8 w-8 text-yellow-600" />
-                      </div>
+              </div>
             </CardContent>
           </Card>
-                      </div>
+        </div>
       )}
 
       {/* Products Section */}
@@ -353,7 +325,7 @@ export function VendorStore() {
             <div>
               <CardTitle>Products ({filteredProducts.length})</CardTitle>
               <CardDescription>Products sold by this vendor</CardDescription>
-                      </div>
+            </div>
             <div className="flex items-center space-x-2">
               <div className="relative">
                 <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
@@ -363,8 +335,8 @@ export function VendorStore() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 w-64"
                 />
-                        </div>
-                      </div>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -373,13 +345,13 @@ export function VendorStore() {
               <div className="text-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-600 mx-auto mb-2"></div>
                 <p className="text-sm text-muted-foreground">Loading products...</p>
-                    </div>
-                  </div>
+              </div>
+            </div>
           ) : filteredProducts.length === 0 ? (
             <div className="text-center py-8">
               <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No products found</p>
-                      </div>
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredProducts.map((product) => (
@@ -416,10 +388,13 @@ export function VendorStore() {
                   </CardContent>
                 </Card>
               ))}
-        </div>
-      )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
+
+
+

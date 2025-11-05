@@ -21,7 +21,8 @@ import {
   Eye,
   Filter,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -183,7 +184,10 @@ export function AdvancedAnalytics() {
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             {isLoading ? "Refreshing..." : "Refresh"}
           </Button>
-          <Button size="sm">
+          <Button 
+            size="sm"
+            onClick={() => handleExportReport('Analytics')}
+          >
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>

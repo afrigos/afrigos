@@ -31,104 +31,103 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
-const productQueueData = [
-  {
-    id: "P001",
-    name: "Authentic Jollof Rice Spice Mix",
-    vendor: "Mama Asha's Kitchen",
-    category: "Food",
-    price: "£12.99",
-    status: "pending",
-    submittedDate: "2024-01-20",
-    images: 3,
-    description: "Premium West African spice blend for authentic Jollof rice. Imported directly from Nigeria.",
-    compliance: {
-      foodSafety: "pending",
-      labeling: "complete",
-      ingredients: "complete",
-      allergens: "pending"
+const API_BASE_URL = 'http://localhost:3002/api/v1';
+
+// Types
+interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'ACTIVE' | 'INACTIVE';
+  sourcing: 'IN_HOUSE' | 'OUTSOURCED';
+  images: string[];
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  vendorId: string;
+  categoryId: string;
+  category?: {
+    name: string;
+  };
+  vendor?: {
+    businessName: string;
+    user: {
+      firstName: string;
+      lastName: string;
+      email: string;
+    };
+  };
+  reviews?: unknown[];
+  orderItems?: unknown[];
+}
+
+interface ProductsResponse {
+  success: boolean;
+  data: {
+    products: Product[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+  };
+}
+
+// API functions
+const fetchProducts = async (params: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+  vendorId?: string;
+}): Promise<ProductsResponse> => {
+  const token = localStorage.getItem('afrigos-token');
+  const queryParams = new URLSearchParams();
+  
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.status) queryParams.append('status', params.status);
+  if (params.search) queryParams.append('search', params.search);
+  if (params.vendorId) queryParams.append('vendorId', params.vendorId);
+
+  const response = await fetch(`${API_BASE_URL}/admin/products?${queryParams}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
     },
-    riskScore: "low",
-    reviewNotes: ""
-  },
-  {
-    id: "P002",
-    name: "Shea Butter Hair Care Set",
-    vendor: "Adunni Beauty",
-    category: "Beauty",
-    price: "£24.99",
-    status: "review",
-    submittedDate: "2024-01-19",
-    images: 5,
-    description: "Natural hair care products made with pure shea butter from Ghana. Suitable for all hair types.",
-    compliance: {
-      foodSafety: "complete",
-      labeling: "complete",
-      ingredients: "complete",
-      allergens: "complete"
-    },
-    riskScore: "low",
-    reviewNotes: "Need to verify organic certification"
-  },
-  {
-    id: "P003",
-    name: "Traditional Kente Cloth Scarf",
-    vendor: "Kente Collections",
-    category: "Clothing",
-    price: "£89.99",
-    status: "pending",
-    submittedDate: "2024-01-21",
-    images: 2,
-    description: "Handwoven traditional Kente cloth scarf. Each piece is unique and tells a story.",
-    compliance: {
-      foodSafety: "complete",
-      labeling: "pending",
-      ingredients: "complete",
-      allergens: "complete"
-    },
-    riskScore: "medium",
-    reviewNotes: ""
-  },
-  {
-    id: "P004",
-    name: "Moringa Leaf Powder",
-    vendor: "Afro Herbs Ltd",
-    category: "Herbal",
-    price: "£18.50",
-    status: "rejected",
-    submittedDate: "2024-01-18",
-    images: 4,
-    description: "Organic Moringa leaf powder. Rich in vitamins and minerals. Imported from Nigeria.",
-    compliance: {
-      foodSafety: "failed",
-      labeling: "complete",
-      ingredients: "complete",
-      allergens: "complete"
-    },
-    riskScore: "high",
-    reviewNotes: "Failed food safety inspection - missing certification"
-  },
-  {
-    id: "P005",
-    name: "Nigerian Pepper Soup Mix",
-    vendor: "Spice Masters",
-    category: "Food",
-    price: "£8.99",
-    status: "pending",
-    submittedDate: "2024-01-22",
-    images: 3,
-    description: "Traditional Nigerian pepper soup spice mix. Perfect for authentic African cuisine.",
-    compliance: {
-      foodSafety: "pending",
-      labeling: "complete",
-      ingredients: "pending",
-      allergens: "pending"
-    },
-    riskScore: "medium",
-    reviewNotes: ""
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch products');
   }
-];
+
+  return response.json();
+};
+
+const updateProductStatus = async (productId: string, status: string, reviewNote?: string) => {
+  const token = localStorage.getItem('afrigos-token');
+  
+  const response = await fetch(`${API_BASE_URL}/admin/products/${productId}/status`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status, reason: reviewNote }),
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to update product status');
+  }
+
+  return response.json();
+};
+
 
 const complianceStatuses = {
   complete: { label: "Complete", color: "bg-success text-success-foreground" },
@@ -141,24 +140,67 @@ export function ProductApprovalQueue() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [isExporting, setIsExporting] = useState(false);
-  const [isLoading, setIsLoading] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage] = useState(10);
+  const [rejectModal, setRejectModal] = useState<{
+    isOpen: boolean;
+    productId?: string;
+    productName?: string;
+  }>({ isOpen: false });
+  const [rejectReason, setRejectReason] = useState("");
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch products from API
+  const { data: productsData, isLoading, error } = useQuery({
+    queryKey: ['admin-products', { page: currentPage, limit: itemsPerPage, status: statusFilter, search: searchTerm }],
+    queryFn: () => fetchProducts({
+      page: currentPage,
+      limit: itemsPerPage,
+      status: statusFilter === 'all' ? undefined : statusFilter,
+      search: searchTerm || undefined,
+    }),
+  });
+
+  // Update product status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ productId, status, reviewNote }: { productId: string; status: string; reviewNote?: string }) =>
+      updateProductStatus(productId, status, reviewNote),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      toast({
+        title: "Success",
+        description: "Product status updated successfully",
+      });
+      setSelectedProduct(null);
+      setReviewNote("");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update product status",
+        variant: "destructive",
+      });
+    },
+  });
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
+    switch (status.toUpperCase()) {
+      case "APPROVED":
         return <Badge className="bg-success text-success-foreground">Approved</Badge>;
-      case "pending":
+      case "PENDING":
         return <Badge className="bg-warning text-warning-foreground">Pending</Badge>;
-      case "rejected":
+      case "REJECTED":
         return <Badge className="bg-destructive text-destructive-foreground">Rejected</Badge>;
-      case "review":
-        return <Badge variant="outline">Under Review</Badge>;
+      case "DRAFT":
+        return <Badge variant="outline">Draft</Badge>;
+      case "ACTIVE":
+        return <Badge className="bg-success text-success-foreground">Active</Badge>;
+      case "INACTIVE":
+        return <Badge variant="secondary">Inactive</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -178,67 +220,47 @@ export function ProductApprovalQueue() {
   };
 
   const handleApprove = async (productId: string) => {
-    setIsLoading(productId);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast({
-        title: "Product Approved",
-        description: `Product ${productId} has been approved and is now live`,
-      });
-    } catch (error) {
-      toast({
-        title: "Approval Failed",
-        description: "Failed to approve product. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(null);
-    }
+    updateStatusMutation.mutate({
+      productId,
+      status: 'APPROVED',
+      reviewNote: reviewNote || undefined,
+    });
   };
 
   const handleReject = async (productId: string, reason: string) => {
-    setIsLoading(productId);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+    // Mock email sending
+    console.log(`Mock email sent to vendor about product ${productId} rejection: ${reason}`);
+    
+    updateStatusMutation.mutate({
+      productId,
+      status: 'REJECTED',
+      reviewNote: reason,
+    });
+    
+    // Close modal and reset reason
+    setRejectModal({ isOpen: false });
+    setRejectReason("");
+  };
+
+  const handleRejectSubmit = () => {
+    if (!rejectModal.productId || !rejectReason.trim()) {
       toast({
-        title: "Product Rejected",
-        description: `Product ${productId} has been rejected: ${reason}`,
+        title: "Error",
+        description: "Please provide a reason for rejection",
         variant: "destructive",
       });
-    } catch (error) {
-      toast({
-        title: "Rejection Failed",
-        description: "Failed to reject product. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(null);
+      return;
     }
+    
+    handleReject(rejectModal.productId, rejectReason);
   };
 
   const handleRequestChanges = async (productId: string, changes: string) => {
-    setIsLoading(productId);
-    try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast({
-        title: "Changes Requested",
-        description: `Changes requested for product ${productId}`,
-      });
-    } catch (error) {
-      toast({
-        title: "Request Failed",
-        description: "Failed to request changes. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(null);
-    }
+    updateStatusMutation.mutate({
+      productId,
+      status: 'DRAFT', // Request changes by setting back to draft
+      reviewNote: changes,
+    });
   };
 
   const handleExportQueue = async () => {
@@ -280,24 +302,71 @@ export function ProductApprovalQueue() {
     }
   };
 
-  const filteredProducts = productQueueData.filter(product => {
-    const matchesSearch = product.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.vendor.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || product.status === statusFilter;
-    const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
-    return matchesSearch && matchesStatus && matchesCategory;
-  });
+  // Use API data instead of mock data
+  const products = productsData?.data?.products || [];
+  const pagination = productsData?.data?.pagination;
 
-  // Pagination logic
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Calculate statistics from API data
+  const calculateStats = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const pendingCount = products.filter(p => p.status === 'PENDING').length;
+    const underReviewCount = products.filter(p => p.status === 'DRAFT').length; // Assuming DRAFT means under review
+    const approvedToday = products.filter(p => {
+      const updatedAt = new Date(p.updatedAt);
+      updatedAt.setHours(0, 0, 0, 0);
+      return p.status === 'APPROVED' && updatedAt.getTime() === today.getTime();
+    }).length;
+    const rejectedToday = products.filter(p => {
+      const updatedAt = new Date(p.updatedAt);
+      updatedAt.setHours(0, 0, 0, 0);
+      return p.status === 'REJECTED' && updatedAt.getTime() === today.getTime();
+    }).length;
+
+    return {
+      pendingCount,
+      underReviewCount,
+      approvedToday,
+      rejectedToday
+    };
+  };
+
+  const stats = calculateStats();
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading products...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <AlertTriangle className="h-8 w-8 text-destructive mx-auto mb-4" />
+            <p className="text-destructive">Failed to load products</p>
+            <p className="text-muted-foreground text-sm mt-2">{error.message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -337,7 +406,7 @@ export function ProductApprovalQueue() {
             <Clock className="h-4 w-4 text-warning" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">34</div>
+            <div className="text-2xl font-bold text-foreground">{stats.pendingCount}</div>
             <div className="text-sm text-muted-foreground">Products awaiting review</div>
           </CardContent>
         </Card>
@@ -350,7 +419,7 @@ export function ProductApprovalQueue() {
             <AlertTriangle className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">12</div>
+            <div className="text-2xl font-bold text-foreground">{stats.underReviewCount}</div>
             <div className="text-sm text-muted-foreground">Currently being reviewed</div>
           </CardContent>
         </Card>
@@ -363,7 +432,7 @@ export function ProductApprovalQueue() {
             <CheckCircle className="h-4 w-4 text-success" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">8</div>
+            <div className="text-2xl font-bold text-foreground">{stats.approvedToday}</div>
             <div className="text-sm text-muted-foreground">Products approved</div>
           </CardContent>
         </Card>
@@ -376,7 +445,7 @@ export function ProductApprovalQueue() {
             <XCircle className="h-4 w-4 text-destructive" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-foreground">3</div>
+            <div className="text-2xl font-bold text-foreground">{stats.rejectedToday}</div>
             <div className="text-sm text-muted-foreground">Products rejected</div>
           </CardContent>
         </Card>
@@ -446,7 +515,6 @@ export function ProductApprovalQueue() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product ID</TableHead>
                     <TableHead>Product Name</TableHead>
                     <TableHead>Vendor</TableHead>
                     <TableHead>Category</TableHead>
@@ -458,37 +526,35 @@ export function ProductApprovalQueue() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentProducts.map((product) => (
+                  {products.map((product) => (
                     <TableRow key={product.id}>
-                      <TableCell className="font-medium">{product.id}</TableCell>
                       <TableCell>
                         <div>
                           <div className="font-medium">{product.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {product.images} images • {product.submittedDate}
+                            {product.images?.length || 0} images • {new Date(product.createdAt).toLocaleDateString()}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{product.vendor}</TableCell>
                       <TableCell>
-                        <Badge variant="outline">{product.category}</Badge>
+                        {product.vendor?.businessName || 
+                         (product.vendor?.user?.firstName && product.vendor?.user?.lastName 
+                           ? `${product.vendor.user.firstName} ${product.vendor.user.lastName}'s Store`
+                           : 'Vendor Store')}
                       </TableCell>
-                      <TableCell className="font-medium">{product.price}</TableCell>
-                      <TableCell>{getStatusBadge(product.status)}</TableCell>
-                      <TableCell>{getRiskBadge(product.riskScore)}</TableCell>
                       <TableCell>
-                        <div className="flex space-x-1">
-                          {Object.entries(product.compliance).map(([key, value]) => (
-                            <div
-                              key={key}
-                              className={`w-2 h-2 rounded-full ${
-                                value === 'complete' ? 'bg-success' :
-                                value === 'pending' ? 'bg-warning' :
-                                'bg-destructive'
-                              }`}
-                              title={`${key}: ${value}`}
-                            />
-                          ))}
+                        <Badge variant="outline">{product.category?.name || 'No Category'}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">£{product.price}</TableCell>
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be assessed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be reviewed
                         </div>
                       </TableCell>
                       <TableCell>
@@ -497,24 +563,27 @@ export function ProductApprovalQueue() {
                             variant="ghost"
                             size="sm"
                             onClick={() => setSelectedProduct(product)}
+                            title="View Product Details"
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
-                          {product.status === "pending" && (
+                          {product.status === "PENDING" && (
                             <>
                               <Button
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => handleApprove(product.id)}
-                                disabled={isLoading === product.id}
+                                disabled={updateStatusMutation.isPending}
+                                title="Approve Product"
                               >
                                 <CheckCircle className="h-4 w-4 text-success" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleReject(product.id, "Quality issues")}
-                                disabled={isLoading === product.id}
+                                onClick={() => setRejectModal({ isOpen: true, productId: product.id, productName: product.name })}
+                                disabled={updateStatusMutation.isPending}
+                                title="Reject Product"
                               >
                                 <XCircle className="h-4 w-4 text-destructive" />
                               </Button>
@@ -526,13 +595,15 @@ export function ProductApprovalQueue() {
                   ))}
                 </TableBody>
               </Table>
+              {pagination && (
               <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
                 onPageChange={handlePageChange}
-                totalItems={filteredProducts.length}
-                itemsPerPage={itemsPerPage}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
               />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -557,11 +628,14 @@ export function ProductApprovalQueue() {
                   <h3 className="font-semibold mb-2">Product Information</h3>
                   <div className="space-y-2 text-sm">
                     <div><strong>Name:</strong> {selectedProduct.name}</div>
-                    <div><strong>Vendor:</strong> {selectedProduct.vendor}</div>
-                    <div><strong>Category:</strong> {selectedProduct.category}</div>
-                    <div><strong>Price:</strong> {selectedProduct.price}</div>
-                    <div><strong>Submitted:</strong> {selectedProduct.submittedDate}</div>
-                    <div><strong>Images:</strong> {selectedProduct.images} photos</div>
+                    <div><strong>Vendor:</strong> {selectedProduct.vendor?.businessName || 
+                         (selectedProduct.vendor?.user?.firstName && selectedProduct.vendor?.user?.lastName 
+                           ? `${selectedProduct.vendor.user.firstName} ${selectedProduct.vendor.user.lastName}'s Store`
+                           : 'Vendor Store')}</div>
+                    <div><strong>Category:</strong> {selectedProduct.category?.name || 'Uncategorized'}</div>
+                    <div><strong>Price:</strong> £{selectedProduct.price}</div>
+                    <div><strong>Submitted:</strong> {new Date(selectedProduct.createdAt).toLocaleDateString()}</div>
+                    <div><strong>Images:</strong> {selectedProduct.images?.length || 0} photos</div>
                   </div>
                   
                   <div className="mt-4">
@@ -570,24 +644,6 @@ export function ProductApprovalQueue() {
                   </div>
                 </div>
                 
-                <div>
-                  <h3 className="font-semibold mb-2">Compliance Status</h3>
-                  <div className="space-y-2">
-                    {Object.entries(selectedProduct.compliance).map(([key, value]) => (
-                      <div key={key} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                        <span className="text-sm capitalize">{key.replace(/([A-Z])/g, ' $1')}</span>
-                        <Badge className={complianceStatuses[value as keyof typeof complianceStatuses].color}>
-                          {complianceStatuses[value as keyof typeof complianceStatuses].label}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="mt-4">
-                    <h4 className="font-medium mb-2">Risk Assessment</h4>
-                    {getRiskBadge(selectedProduct.riskScore)}
-                  </div>
-                </div>
               </div>
 
               <div className="mt-6">
@@ -603,26 +659,26 @@ export function ProductApprovalQueue() {
               <div className="mt-6 flex space-x-2">
                 <Button 
                   onClick={() => handleApprove(selectedProduct.id)}
-                  disabled={isLoading === selectedProduct.id}
+                  disabled={updateStatusMutation.isPending}
                 >
                   <CheckCircle className="h-4 w-4 mr-2" />
-                  {isLoading === selectedProduct.id ? "Processing..." : "Approve Product"}
+                  {updateStatusMutation.isPending ? "Processing..." : "Approve Product"}
                 </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => handleRequestChanges(selectedProduct.id, reviewNote)}
-                  disabled={isLoading === selectedProduct.id}
+                  disabled={updateStatusMutation.isPending}
                 >
                   <AlertTriangle className="h-4 w-4 mr-2" />
-                  {isLoading === selectedProduct.id ? "Processing..." : "Request Changes"}
+                  {updateStatusMutation.isPending ? "Processing..." : "Request Changes"}
                 </Button>
                 <Button 
                   variant="destructive" 
                   onClick={() => handleReject(selectedProduct.id, reviewNote)}
-                  disabled={isLoading === selectedProduct.id}
+                  disabled={updateStatusMutation.isPending}
                 >
                   <XCircle className="h-4 w-4 mr-2" />
-                  {isLoading === selectedProduct.id ? "Processing..." : "Reject Product"}
+                  {updateStatusMutation.isPending ? "Processing..." : "Reject Product"}
                 </Button>
                 <Button variant="outline" onClick={() => setSelectedProduct(null)}>
                   Close
@@ -632,6 +688,63 @@ export function ProductApprovalQueue() {
           </div>
         )}
       </Tabs>
+
+      {/* Reject Product Modal */}
+      {rejectModal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Reject Product</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setRejectModal({ isOpen: false })}
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Product: <span className="font-medium">{rejectModal.productName}</span>
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Please provide a reason for rejecting this product. This will be sent to the vendor via email.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Rejection Reason *
+                </label>
+                <Textarea
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  placeholder="Please explain why this product is being rejected..."
+                  className="min-h-[100px]"
+                />
+              </div>
+              
+              <div className="flex space-x-2 justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setRejectModal({ isOpen: false })}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleRejectSubmit}
+                  disabled={updateStatusMutation.isPending || !rejectReason.trim()}
+                >
+                  {updateStatusMutation.isPending ? "Rejecting..." : "Reject Product"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

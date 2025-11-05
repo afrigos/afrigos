@@ -1,53 +1,27 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useLogin } from "@/hooks/useLogin";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-  const navigate = useNavigate();
-  const { login } = useAuth();
+  const loginMutation = useLogin();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const success = await login(email, password, 'admin');
-      
-      if (success) {
-        toast({
-          title: "Welcome back!",
-          description: "Successfully logged into AfriGos Admin Dashboard",
-        });
-        navigate("/admin/dashboard");
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "Invalid email or password. Try admin@afrigos.com / admin123",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Login Error",
-        description: "An error occurred during login. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    
+    loginMutation.mutate({
+      email,
+      password
+    });
   };
 
   return (
@@ -127,9 +101,9 @@ export default function Login() {
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-primary to-dashboard-accent hover:opacity-90"
-                disabled={isLoading}
+                disabled={loginMutation.isPending}
               >
-                {isLoading ? "Signing In..." : "Sign In"}
+                {loginMutation.isPending ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 

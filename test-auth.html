@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Authentication</title>
+</head>
+<body>
+    <h1>Test Authentication</h1>
+    <button onclick="testAuth()">Test Auth</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAuth() {
+            const token = localStorage.getItem('token');
+            console.log('Token from localStorage:', token);
+            
+            if (!token) {
+                document.getElementById('result').innerHTML = 'No token found in localStorage';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3002/api/v1/products', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                const data = await response.json();
+                console.log('API Response:', data);
+                document.getElementById('result').innerHTML = JSON.stringify(data, null, 2);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+

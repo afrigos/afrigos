@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -12,9 +13,47 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
+const API_BASE_URL = 'http://localhost:3002/api/v1';
+
+interface VendorDashboardData {
+  overview: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalProducts: number;
+    avgRating: number;
+    growthRate: number;
+    orderGrowth: number;
+    productGrowth: number;
+    ratingGrowth: number;
+  };
+}
+
+// Fetch vendor dashboard data
+const fetchVendorDashboard = async (): Promise<VendorDashboardData> => {
+  const response = await fetch(`${API_BASE_URL}/vendor/dashboard`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch vendor dashboard data');
+  }
+  
+  const data = await response.json();
+  return data.data;
+};
+
 export function VendorHeader() {
   const { user } = useAuth();
   const [notifications] = useState(3); // Mock notification count
+
+  // Fetch vendor dashboard data
+  const { data: dashboardData, isLoading } = useQuery({
+    queryKey: ['vendor-dashboard'],
+    queryFn: fetchVendorDashboard,
+    refetchInterval: 30000 // Refetch every 30 seconds
+  });
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-background px-6">
@@ -32,15 +71,15 @@ export function VendorHeader() {
         <div className="hidden md:flex items-center space-x-4 text-sm text-muted-foreground">
           <div className="flex items-center space-x-1">
             <Package className="h-4 w-4" />
-            <span>24 Products</span>
+            <span>{isLoading ? '...' : `${dashboardData?.overview?.totalProducts || 0} Products`}</span>
           </div>
           <div className="flex items-center space-x-1">
             <ShoppingCart className="h-4 w-4" />
-            <span>156 Orders</span>
+            <span>{isLoading ? '...' : `${dashboardData?.overview?.totalOrders || 0} Orders`}</span>
           </div>
           <div className="flex items-center space-x-1">
             <DollarSign className="h-4 w-4" />
-            <span>£12,450 Revenue</span>
+            <span>{isLoading ? '...' : `£${(dashboardData?.overview?.totalRevenue || 0).toFixed(2)} Revenue`}</span>
           </div>
         </div>
 

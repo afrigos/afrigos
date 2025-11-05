@@ -5,9 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Eye, EyeOff, Mail, Lock, User, Building } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
+import { useRegister } from "@/hooks/useAuth";
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -15,16 +14,11 @@ export default function Signup() {
     lastName: "",
     email: "",
     password: "",
-    confirmPassword: "",
-    role: "",
-    department: "",
   });
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
   const navigate = useNavigate();
+  const registerMutation = useRegister();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -32,36 +26,22 @@ export default function Signup() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (formData.password !== formData.confirmPassword) {
-      toast({
-        title: "Password Mismatch",
-        description: "Passwords do not match. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     if (!agreeToTerms) {
-      toast({
-        title: "Terms Required",
-        description: "Please agree to the terms and conditions.",
-        variant: "destructive",
-      });
       return;
     }
 
-    setIsLoading(true);
-
-    // Mock signup logic (frontend only)
-    setTimeout(() => {
-      toast({
-        title: "Account Request Submitted",
-        description: "Your admin account request has been submitted for review. You'll receive an email once approved.",
-      });
-      navigate("/auth/login");
-      setIsLoading(false);
-    }, 1500);
+    registerMutation.mutate({
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      password: formData.password,
+      role: 'ADMIN'
+    }, {
+      onSuccess: () => {
+        navigate("/auth/login");
+      }
+    });
   };
 
   return (
@@ -128,35 +108,6 @@ export default function Signup() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="role">Requested Role</Label>
-                  <Select onValueChange={(value) => handleInputChange("role", value)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="operations-manager">Operations Manager</SelectItem>
-                      <SelectItem value="support-agent">Support Agent</SelectItem>
-                      <SelectItem value="content-moderator">Content Moderator</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="department">Department</Label>
-                  <div className="relative">
-                    <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="department"
-                      placeholder="e.g., Operations"
-                      value={formData.department}
-                      onChange={(e) => handleInputChange("department", e.target.value)}
-                      className="pl-10"
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -181,28 +132,6 @@ export default function Signup() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="confirmPassword"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                    className="pl-10 pr-10"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
 
               <div className="flex items-center space-x-2">
                 <Checkbox 
@@ -225,9 +154,9 @@ export default function Signup() {
               <Button 
                 type="submit" 
                 className="w-full bg-gradient-to-r from-primary to-dashboard-accent hover:opacity-90"
-                disabled={isLoading || !agreeToTerms}
+                disabled={registerMutation.isPending || !agreeToTerms}
               >
-                {isLoading ? "Submitting Request..." : "Submit Request"}
+                {registerMutation.isPending ? "Submitting Request..." : "Submit Request"}
               </Button>
             </form>
           </CardContent>

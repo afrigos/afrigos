@@ -1,0 +1,394 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  role      UserRole @default(VENDOR)
+  avatar    String?
+  phone     String?
+  isActive  Boolean  @default(true)
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  vendorProfile VendorProfile?
+  adminProfile  AdminProfile?
+  orders        Order[]
+  reviews       Review[]
+  addresses     Address[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+model AdminProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissions String[] // JSON array of permissions
+  department String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("admin_profiles")
+}
+
+model VendorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName    String
+  businessType    String
+  businessNumber  String?
+  taxId           String?
+  description     String?
+  foundedYear     String?
+  employees       String?
+  revenue         String?
+  website         String?
+  socialMedia     Json?    // JSON object for social media links
+  isVerified      Boolean  @default(false)
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  products        Product[]
+  orders          Order[]
+  earnings        VendorEarning[]
+  reviews         Review[]
+  documents       VendorDocument[]
+
+  @@map("vendor_profiles")
+}
+
+// Product Management
+model Category {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String?
+  image       String?
+  type        CategoryType @default(AugmentableProduct)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  price       Decimal  @db.Decimal(10, 2)
+  comparePrice Decimal? @db.Decimal(10, 2)
+  sku         String?  @unique
+  stock       Int      @default(0)
+  images      String[] // Array of image URLs
+  tags        String[] // Array of tags
+  sourcing    ProductSourcing @default(IN_HOUSE)
+  isActive    Boolean  @default(true)
+  isFeatured  Boolean  @default(false)
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Foreign Keys
+  vendorId   String
+  categoryId String
+
+  // Relations
+  vendor     VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  category   Category      @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  reviews    Review[]
+
+  @@map("products")
+}
+
+// Order Management
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  status          OrderStatus @default(PENDING)
+  totalAmount     Decimal     @db.Decimal(10, 2)
+  shippingCost    Decimal     @db.Decimal(10, 2) @default(0)
+  taxAmount       Decimal     @db.Decimal(10, 2) @default(0)
+  discountAmount  Decimal     @db.Decimal(10, 2) @default(0)
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   String?
+  shippingAddress Json        // JSON object for shipping address
+  billingAddress  Json?       // JSON object for billing address
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  // Foreign Keys
+  customerId String
+  vendorId   String
+
+  // Relations
+  customer   User        @relation(fields: [customerId], references: [id])
+  vendor     VendorProfile @relation(fields: [vendorId], references: [id])
+  orderItems OrderItem[]
+  payments   Payment[]
+  vendorEarnings VendorEarning[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  total     Decimal @db.Decimal(10, 2)
+
+  // Foreign Keys
+  orderId   String
+  productId String
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+// Payment Management
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Decimal       @db.Decimal(10, 2)
+  currency      String        @default("GBP")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String
+  transactionId String?       @unique
+  gateway       PaymentGateway
+  gatewayResponse Json?       // JSON object for gateway response
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Foreign Keys
+  orderId String
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+// Reviews and Ratings
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  comment   String?
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Foreign Keys
+  customerId String
+  vendorId   String
+  productId  String
+
+  // Relations
+  customer User          @relation(fields: [customerId], references: [id])
+  vendor   VendorProfile @relation(fields: [vendorId], references: [id])
+  product  Product       @relation(fields: [productId], references: [id])
+
+  @@unique([customerId, productId])
+  @@map("reviews")
+}
+
+// Vendor Earnings
+model VendorEarning {
+  id            String   @id @default(cuid())
+  amount        Decimal  @db.Decimal(10, 2)
+  commission    Decimal  @db.Decimal(10, 2)
+  netAmount     Decimal  @db.Decimal(10, 2)
+  status        EarningStatus @default(PENDING)
+  paidAt        DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Foreign Keys
+  vendorId String
+  orderId  String
+
+  // Relations
+  vendor VendorProfile @relation(fields: [vendorId], references: [id])
+  order  Order         @relation(fields: [orderId], references: [id])
+
+  @@map("vendor_earnings")
+}
+
+// Address Management
+model Address {
+  id          String      @id @default(cuid())
+  type        AddressType @default(SHIPPING)
+  street      String
+  city        String
+  state       String
+  postalCode  String
+  country     String
+  isDefault   Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Foreign Keys
+  userId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+// Document Management
+model VendorDocument {
+  id          String           @id @default(cuid())
+  name        String
+  type        DocumentType
+  url         String
+  status      DocumentStatus   @default(PENDING)
+  uploadedAt  DateTime         @default(now())
+  verifiedAt  DateTime?
+  expiresAt   DateTime?
+
+  // Foreign Keys
+  vendorId String
+
+  // Relations
+  vendor VendorProfile @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@map("vendor_documents")
+}
+
+// Notifications
+model Notification {
+  id        String           @id @default(cuid())
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  // Foreign Keys
+  userId String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  VENDOR
+  CUSTOMER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  INACTIVE
+}
+
+enum ProductSourcing {
+  IN_HOUSE
+  OUTSOURCED
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentGateway {
+  STRIPE
+  FLUTTERWAVE
+  PAYPAL
+  BANK_TRANSFER
+}
+
+enum EarningStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+enum DocumentType {
+  BUSINESS_LICENSE
+  TAX_CERTIFICATE
+  INSURANCE
+  IDENTITY
+  BANK_STATEMENT
+}
+
+enum DocumentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum NotificationType {
+  ORDER_UPDATE
+  PAYMENT_RECEIVED
+  PRODUCT_APPROVED
+  PRODUCT_REJECTED
+  EARNING_PAID
+  SYSTEM_ALERT
+}
+
+enum CategoryType {
+  AugmentableProduct
+  Service
+  Digital
+  Physical
+}

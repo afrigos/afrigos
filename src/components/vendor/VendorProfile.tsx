@@ -308,44 +308,46 @@ export function VendorProfile() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
-          <p className="text-muted-foreground">Manage your vendor account and store information</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-            <Edit className="h-4 w-4 mr-2" />
-            {isEditing ? "Cancel" : "Edit Profile"}
-          </Button>
-          {isEditing && (
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-2" />
-              Save Changes
+      {/* Header with Afri GoS gradient */}
+      <div className="bg-afrigos-hero rounded-xl p-6 shadow-afrigos">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
+            <p className="text-white/90">Manage your vendor account and store information</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={() => setIsEditing(!isEditing)} className="bg-white/10 border-white/20 text-white hover:bg-white/20">
+              <Edit className="h-4 w-4 mr-2" />
+              {isEditing ? "Cancel" : "Edit Profile"}
             </Button>
-          )}
+            {isEditing && (
+              <Button onClick={handleSave} className="bg-white text-afrigos hover:bg-white/90">
+                <Save className="h-4 w-4 mr-2" />
+                Save Changes
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="personal">Personal</TabsTrigger>
-          <TabsTrigger value="business">Business</TabsTrigger>
-          <TabsTrigger value="address">Address</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-6 bg-white shadow-md">
+          <TabsTrigger value="overview" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Overview</TabsTrigger>
+          <TabsTrigger value="personal" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Personal</TabsTrigger>
+          <TabsTrigger value="business" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Business</TabsTrigger>
+          <TabsTrigger value="address" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Address</TabsTrigger>
+          <TabsTrigger value="preferences" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Preferences</TabsTrigger>
+          <TabsTrigger value="security" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Security</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {/* Profile Card */}
-            <Card className="lg:col-span-1">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <Card className="lg:col-span-1 border-afrigos/20 shadow-afrigos">
+              <CardHeader className="bg-afrigos-gradient/10">
+                <CardTitle className="flex items-center space-x-2 text-afrigos">
                   <User className="h-5 w-5" />
                   <span>Profile Overview</span>
                 </CardTitle>
@@ -360,7 +362,7 @@ export function VendorProfile() {
                       </AvatarFallback>
                     </Avatar>
                     {isEditing && (
-                      <label className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-2 cursor-pointer hover:bg-primary/90 transition-colors">
+                      <label className="absolute bottom-0 right-0 bg-afrigos-gradient text-white rounded-full p-2 cursor-pointer hover:opacity-90 transition-all shadow-lg">
                         <Camera className="h-4 w-4" />
                         <input
                           type="file"
@@ -411,9 +413,9 @@ export function VendorProfile() {
             </Card>
 
             {/* Performance Metrics */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
+            <Card className="lg:col-span-2 border-afrigos/20 shadow-afrigos">
+              <CardHeader className="bg-afrigos-gradient/10">
+                <CardTitle className="flex items-center space-x-2 text-afrigos">
                   <TrendingUp className="h-5 w-5" />
                   <span>Performance Metrics</span>
                 </CardTitle>
@@ -422,37 +424,37 @@ export function VendorProfile() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <Star className="h-4 w-4 text-yellow-500" />
+                      <Star className="h-4 w-4 text-afrigos-glow" />
                       <span className="text-sm font-medium">Rating</span>
                     </div>
-                    <p className="text-2xl font-bold">{profile.performance.rating}/5.0</p>
+                    <p className="text-2xl font-bold text-afrigos">{profile.performance.rating}/5.0</p>
                     <p className="text-xs text-muted-foreground">{profile.performance.totalReviews} reviews</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <Package className="h-4 w-4 text-blue-500" />
+                      <Package className="h-4 w-4 text-afrigos" />
                       <span className="text-sm font-medium">Total Sales</span>
                     </div>
-                    <p className="text-2xl font-bold">{profile.performance.totalSales}</p>
+                    <p className="text-2xl font-bold text-afrigos">{profile.performance.totalSales}</p>
                     <p className="text-xs text-muted-foreground">products sold</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-green-500" />
+                      <DollarSign className="h-4 w-4 text-afrigos" />
                       <span className="text-sm font-medium">Total Revenue</span>
                     </div>
-                    <p className="text-2xl font-bold">{formatCurrency(profile.performance.totalRevenue)}</p>
+                    <p className="text-2xl font-bold text-afrigos">{formatCurrency(profile.performance.totalRevenue)}</p>
                     <p className="text-xs text-muted-foreground">lifetime earnings</p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <CheckCircle className="h-4 w-4 text-afrigos" />
                       <span className="text-sm font-medium">Fulfillment Rate</span>
                     </div>
-                    <p className="text-2xl font-bold">{profile.performance.fulfillmentRate}%</p>
+                    <p className="text-2xl font-bold text-afrigos">{profile.performance.fulfillmentRate}%</p>
                     <p className="text-xs text-muted-foreground">on-time delivery</p>
                   </div>
                 </div>
@@ -461,9 +463,9 @@ export function VendorProfile() {
           </div>
 
           {/* Documents Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
+          <Card className="border-afrigos/20 shadow-afrigos">
+            <CardHeader className="bg-afrigos-gradient/10">
+              <CardTitle className="flex items-center space-x-2 text-afrigos">
                 <FileText className="h-5 w-5" />
                 <span>Document Verification</span>
               </CardTitle>

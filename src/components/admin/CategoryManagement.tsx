@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,127 +25,219 @@ import {
   Tag,
   Package,
   Users,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle,
+  X
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
 
-// Sample category data
-const categoryData = [
-  {
-    id: "CAT001",
-    name: "Food & Beverages",
-    description: "Fresh food, beverages, and culinary products",
-    type: "Product",
-    status: "active",
-    vendorCount: 45,
-    productCount: 234,
-    revenue: "£45,678",
-    createdAt: "2023-01-15",
-    updatedAt: "2024-01-20"
-  },
-  {
-    id: "CAT002",
-    name: "Fashion & Clothing",
-    description: "Traditional and modern African fashion",
-    type: "Product",
-    status: "active",
-    vendorCount: 32,
-    productCount: 189,
-    revenue: "£38,920",
-    createdAt: "2023-02-10",
-    updatedAt: "2024-01-18"
-  },
-  {
-    id: "CAT003",
-    name: "Beauty & Personal Care",
-    description: "Natural beauty and personal care products",
-    type: "Product",
-    status: "active",
-    vendorCount: 28,
-    productCount: 156,
-    revenue: "£29,450",
-    createdAt: "2023-03-05",
-    updatedAt: "2024-01-15"
-  },
-  {
-    id: "CAT004",
-    name: "Health & Wellness",
-    description: "Traditional medicine and wellness products",
-    type: "Product",
-    status: "active",
-    vendorCount: 22,
-    productCount: 98,
-    revenue: "£18,750",
-    createdAt: "2023-04-12",
-    updatedAt: "2024-01-12"
-  },
-  {
-    id: "CAT005",
-    name: "Home & Garden",
-    description: "Home decor and garden products",
-    type: "Product",
-    status: "active",
-    vendorCount: 18,
-    productCount: 87,
-    revenue: "£15,230",
-    createdAt: "2023-05-20",
-    updatedAt: "2024-01-10"
-  },
-  {
-    id: "CAT006",
-    name: "Electronics & Technology",
-    description: "Electronic devices and tech accessories",
-    type: "Product",
-    status: "inactive",
-    vendorCount: 12,
-    productCount: 45,
-    revenue: "£8,920",
-    createdAt: "2023-06-08",
-    updatedAt: "2024-01-05"
-  },
-  {
-    id: "CAT007",
-    name: "Arts & Crafts",
-    description: "Traditional African arts and crafts",
-    type: "Product",
-    status: "active",
-    vendorCount: 25,
-    productCount: 134,
-    revenue: "£22,180",
-    createdAt: "2023-07-15",
-    updatedAt: "2024-01-08"
-  },
-  {
-    id: "CAT008",
-    name: "Jewelry & Accessories",
-    description: "Traditional and modern jewelry",
-    type: "Product",
-    status: "active",
-    vendorCount: 20,
-    productCount: 112,
-    revenue: "£19,450",
-    createdAt: "2023-08-22",
-    updatedAt: "2024-01-14"
-  }
-];
+const API_BASE_URL = 'http://localhost:3002/api/v1';
 
-const categoryTypes = ["Product", "Service", "Digital", "Physical"];
+interface Category {
+  id: string;
+  name: string;
+  description: string;
+  type: string;
+  status: string;
+  vendorCount: number;
+  productCount: number;
+  revenue: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CategoriesResponse {
+  success: boolean;
+  data: Category[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+}
+
+// API functions
+const fetchCategories = async (params: { page?: number; limit?: number; search?: string; status?: string; type?: string }): Promise<CategoriesResponse> => {
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.append('page', params.page.toString());
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.search) queryParams.append('search', params.search);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.type) queryParams.append('type', params.type);
+
+  const response = await fetch(`${API_BASE_URL}/categories?${queryParams}`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch categories');
+  }
+
+  return response.json();
+};
+
+const createCategory = async (data: { name: string; description?: string; type?: string; status?: string }) => {
+  const response = await fetch(`${API_BASE_URL}/categories`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to create category');
+  }
+
+  return response.json();
+};
+
+const updateCategory = async (id: string, data: { name?: string; description?: string; type?: string; status?: string }) => {
+  console.log('API call - updating category:', id, data);
+  
+  const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
+    },
+    body: JSON.stringify(data)
+  });
+
+  console.log('API response status:', response.status);
+
+  if (!response.ok) {
+    const error = await response.json();
+    console.error('API error:', error);
+    throw new Error(error.message || 'Failed to update category');
+  }
+
+  const result = await response.json();
+  console.log('API success:', result);
+  return result;
+};
+
+const deleteCategory = async (id: string) => {
+  const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to delete category');
+  }
+
+  return response.json();
+};
+
+const categoryTypes = ["AugmentableProduct", "Service", "Digital", "Physical"];
+
+// Helper function to get display name for category type
+const getTypeDisplayName = (type: string) => {
+  switch (type) {
+    case 'AugmentableProduct': return 'Product';
+    case 'Service': return 'Service';
+    case 'Digital': return 'Digital';
+    case 'Physical': return 'Physical';
+    default: return type;
+  }
+};
 
 export function CategoryManagement() {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [selectedCategory, setSelectedCategory] = useState<any>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
   const [isExporting, setIsExporting] = useState(false);
-  const [isLoading, setIsLoading] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [isEditingCategory, setIsEditingCategory] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const { toast } = useToast();
+
+  // Fetch categories using TanStack Query
+  const { data: categoriesResponse, isLoading, error } = useQuery<CategoriesResponse, Error>({
+    queryKey: ['categories', currentPage, statusFilter, typeFilter, searchTerm],
+    queryFn: () => fetchCategories({
+      page: currentPage,
+      limit: itemsPerPage,
+      search: searchTerm,
+      status: statusFilter !== 'all' ? statusFilter : undefined,
+      type: typeFilter !== 'all' ? typeFilter : undefined
+    })
+  });
+
+  // Create category mutation
+  const createCategoryMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: (data) => {
+      toast({
+        title: "Category Added Successfully",
+        description: data.message || "Category has been added successfully.",
+      });
+      setShowAddModal(false);
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Add Category",
+        description: error.message || "Failed to add category. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update category mutation
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateCategory(id, data),
+    onSuccess: (data) => {
+      toast({
+        title: "Category Updated Successfully",
+        description: data.message || "Category has been updated successfully.",
+      });
+      setShowEditModal(false);
+      setSelectedCategory(null);
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Update Category",
+        description: error.message || "Failed to update category. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete category mutation
+  const deleteCategoryMutation = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: (data) => {
+      toast({
+        title: "Category Deleted",
+        description: data.message || "Category has been deleted successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Deletion Failed",
+        description: error.message || "Failed to delete category. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Add/Edit category form state
   const [categoryForm, setCategoryForm] = useState({
@@ -153,6 +246,11 @@ export function CategoryManagement() {
     type: "",
     status: "active"
   });
+
+  // Get categories data from API response
+  const categories = categoriesResponse?.data || [];
+  const pagination = categoriesResponse?.pagination || { total: 0, pages: 0 };
+  const totalPages = pagination.pages;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -167,23 +265,14 @@ export function CategoryManagement() {
     }
   };
 
-  const filteredCategories = categoryData.filter(category => {
-    const matchesSearch = category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         category.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || category.status === statusFilter;
-    const matchesType = typeFilter === "all" || category.type === typeFilter;
-    return matchesSearch && matchesStatus && matchesType;
-  });
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredCategories.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentCategories = filteredCategories.slice(startIndex, endIndex);
-
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, typeFilter, searchTerm]);
 
   const handleExportData = async () => {
     setIsExporting(true);
@@ -214,7 +303,8 @@ export function CategoryManagement() {
     setShowAddModal(true);
   };
 
-  const handleEditCategory = (category: any) => {
+  const handleEditCategory = (category: Category) => {
+    setSelectedCategory(category);
     setCategoryForm({
       name: category.name,
       description: category.description,
@@ -226,71 +316,36 @@ export function CategoryManagement() {
 
   const handleAddCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsAddingCategory(true);
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast({
-        title: "Category Added Successfully",
-        description: `Category "${categoryForm.name}" has been added successfully.`,
-      });
-      
-      setShowAddModal(false);
-      
-    } catch (error) {
-      toast({
-        title: "Failed to Add Category",
-        description: "An error occurred while adding the category. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsAddingCategory(false);
-    }
+    createCategoryMutation.mutate(categoryForm);
   };
 
   const handleEditCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditingCategory(true);
-    
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      toast({
-        title: "Category Updated Successfully",
-        description: `Category "${categoryForm.name}" has been updated successfully.`,
+    if (selectedCategory) {
+      console.log('Updating category:', selectedCategory.id, categoryForm);
+      updateCategoryMutation.mutate({
+        id: selectedCategory.id,
+        data: categoryForm
       });
-      
-      setShowEditModal(false);
-      
-    } catch (error) {
-      toast({
-        title: "Failed to Update Category",
-        description: "An error occurred while updating the category. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsEditingCategory(false);
     }
   };
 
-  const handleDeleteCategory = async (categoryId: string) => {
-    setIsLoading(categoryId);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({
-        title: "Category Deleted",
-        description: "Category has been deleted successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Deletion Failed",
-        description: "Failed to delete category. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(null);
+  const handleDeleteCategory = (category: Category) => {
+    setCategoryToDelete(category);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (categoryToDelete) {
+      deleteCategoryMutation.mutate(categoryToDelete.id);
+      setShowDeleteModal(false);
+      setCategoryToDelete(null);
     }
+  };
+
+  const cancelDeleteCategory = () => {
+    setShowDeleteModal(false);
+    setCategoryToDelete(null);
   };
 
   const handleCategoryFormChange = (field: string, value: string) => {
@@ -359,7 +414,7 @@ export function CategoryManagement() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {categoryTypes.map(type => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                  <SelectItem key={type} value={type}>{getTypeDisplayName(type)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -387,7 +442,29 @@ export function CategoryManagement() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {currentCategories.map((category) => (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <div className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <span className="ml-2">Loading categories...</span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : error ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-destructive">
+                    Error loading categories: {error.message}
+                  </TableCell>
+                </TableRow>
+              ) : categories.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    No categories found
+                  </TableCell>
+                </TableRow>
+              ) : (
+                categories.map((category) => (
                 <TableRow key={category.id}>
                   <TableCell>
                     <div>
@@ -396,7 +473,7 @@ export function CategoryManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline">{category.type}</Badge>
+                    <Badge variant="outline">{getTypeDisplayName(category.type)}</Badge>
                   </TableCell>
                   <TableCell>{getStatusBadge(category.status)}</TableCell>
                   <TableCell className="text-center">{category.vendorCount}</TableCell>
@@ -421,22 +498,23 @@ export function CategoryManagement() {
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleDeleteCategory(category.id)}
-                        disabled={isLoading === category.id}
+                          onClick={() => handleDeleteCategory(category)}
+                          disabled={deleteCategoryMutation.isPending}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                ))
+              )}
             </TableBody>
           </Table>
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}
             onPageChange={handlePageChange}
-            totalItems={filteredCategories.length}
+            totalItems={pagination.total}
             itemsPerPage={itemsPerPage}
           />
         </CardContent>
@@ -545,7 +623,7 @@ export function CategoryManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     {categoryTypes.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                      <SelectItem key={type} value={type}>{getTypeDisplayName(type)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -565,8 +643,8 @@ export function CategoryManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full" disabled={isAddingCategory}>
-                {isAddingCategory ? "Adding..." : "Add Category"}
+              <Button type="submit" className="w-full" disabled={createCategoryMutation.isPending}>
+                {createCategoryMutation.isPending ? "Adding..." : "Add Category"}
               </Button>
             </form>
           </div>
@@ -624,7 +702,7 @@ export function CategoryManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     {categoryTypes.map(type => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                      <SelectItem key={type} value={type}>{getTypeDisplayName(type)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -644,10 +722,73 @@ export function CategoryManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button type="submit" className="w-full" disabled={isEditingCategory}>
-                {isEditingCategory ? "Updating..." : "Update Category"}
+              <Button type="submit" className="w-full" disabled={updateCategoryMutation.isPending}>
+                {updateCategoryMutation.isPending ? "Updating..." : "Update Category"}
               </Button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && categoryToDelete && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <AlertTriangle className="h-6 w-6 text-destructive" />
+                </div>
+                <h2 className="text-xl font-bold">Delete Category</h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={cancelDeleteCategory}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <p className="text-muted-foreground">
+                Are you sure you want to delete the category <strong>"{categoryToDelete.name}"</strong>? 
+                This action cannot be undone.
+              </p>
+              
+              {categoryToDelete.productCount > 0 && (
+                <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                  <div className="flex items-start space-x-2">
+                    <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
+                    <div className="text-sm text-warning">
+                      <p className="font-medium">Warning</p>
+                      <p className="mt-1">
+                        This category has {categoryToDelete.productCount} product(s). 
+                        You cannot delete a category that contains products.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-2 pt-4">
+                <Button 
+                  variant="destructive" 
+                  onClick={confirmDeleteCategory}
+                  disabled={deleteCategoryMutation.isPending || categoryToDelete.productCount > 0}
+                  className="flex-1"
+                >
+                  {deleteCategoryMutation.isPending ? "Deleting..." : "Delete Category"}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={cancelDeleteCategory}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

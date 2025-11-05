@@ -3,7 +3,7 @@ import { VendorSidebar } from "@/components/vendor/VendorSidebar";
 import { VendorHeader } from "@/components/vendor/VendorHeader";
 import { VendorDashboard } from "@/components/vendor/VendorDashboard";
 import { VendorOrderManagement } from "@/components/vendor/VendorOrderManagement";
-import { VendorProductManagement } from "@/components/vendor/VendorProductManagement";
+import ProductManagement from "@/components/vendor/ProductManagement";
 import { VendorAnalytics } from "@/components/vendor/VendorAnalytics";
 import { VendorEarnings } from "@/components/vendor/VendorEarnings";
 import { VendorReviews } from "@/components/vendor/VendorReviews";
@@ -26,7 +26,7 @@ const VendorLayout = () => {
               <Route index element={<VendorDashboard />} />
               <Route path="dashboard" element={<VendorDashboard />} />
               <Route path="orders" element={<VendorOrderManagement />} />
-              <Route path="products" element={<VendorProductManagement />} />
+              <Route path="products" element={<ProductManagement />} />
               <Route path="analytics" element={<VendorAnalytics />} />
               <Route path="earnings" element={<VendorEarnings />} />
               <Route path="reviews" element={<VendorReviews />} />

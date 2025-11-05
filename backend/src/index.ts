@@ -1,0 +1,157 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
+import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+
+// Import routes
+import authRoutes from './routes/auth';
+import adminAuthRoutes from './routes/admin-auth';
+import userRoutes from './routes/users';
+import vendorRoutes from './routes/vendors';
+import productRoutes from './routes/products';
+import orderRoutes from './routes/orders';
+import paymentRoutes from './routes/payments';
+import adminRoutes from './routes/admin';
+import analyticsRoutes from './routes/analytics';
+import categoriesRoutes from './routes/categories';
+import vendorDashboardRoutes from './routes/vendor-dashboard';
+import adminProductsRoutes from './routes/admin-products';
+
+// Import middleware
+import { errorHandler } from './middleware/errorHandler';
+import { notFound } from './middleware/notFound';
+import { authenticate } from './middleware/auth';
+
+// Load environment variables
+dotenv.config();
+
+const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || "http://localhost:8083",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Initialize Prisma
+export const prisma = new PrismaClient();
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "http://localhost:3002", "*"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  },
+}));
+app.use(compression());
+app.use(morgan('combined'));
+app.use(limiter);
+app.use(cors({
+  origin: ["http://localhost:8083", "http://localhost:8084", "http://localhost:3000"],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true
+}));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// API Routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/admin-auth', adminAuthRoutes);
+app.use('/api/v1/users', authenticate, userRoutes);
+app.use('/api/v1/vendors', authenticate, vendorRoutes);
+app.use('/api/v1/products', productRoutes);
+app.use('/api/v1/orders', authenticate, orderRoutes);
+app.use('/api/v1/payments', authenticate, paymentRoutes);
+app.use('/api/v1/admin', authenticate, adminRoutes);
+app.use('/api/v1/analytics', authenticate, analyticsRoutes);
+app.use('/api/v1/categories', categoriesRoutes);
+app.use('/api/v1/vendor', vendorDashboardRoutes);
+app.use('/api/v1/admin/products', adminProductsRoutes);
+
+// Serve static files (uploads) with CORS headers
+app.use('/uploads', (req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+}, express.static('uploads'));
+
+// Socket.io for real-time features
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('join-vendor-room', (vendorId) => {
+    socket.join(`vendor-${vendorId}`);
+    console.log(`User joined vendor room: ${vendorId}`);
+  });
+
+  socket.on('join-admin-room', () => {
+    socket.join('admin-room');
+    console.log('User joined admin room');
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// Make io available to routes
+app.set('io', io);
+
+// Error handling middleware
+app.use(notFound);
+app.use(errorHandler);
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('Shutting down gracefully...');
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+const PORT = process.env.PORT || 3002;
+
+server.listen(PORT, () => {
+  console.log(`🚀 Afri GoS Backend Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 Health check: http://localhost:${PORT}/health`);
+});
+
+export { io };
