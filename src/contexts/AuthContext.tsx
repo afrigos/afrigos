@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE_URL } from '@/lib/api-config';
 
 interface User {
   id: string;
@@ -38,21 +39,97 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if user is logged in on app start
-    const checkAuth = () => {
+    // Check if user is logged in on app start and validate token
+    const checkAuth = async () => {
+      const token = localStorage.getItem('afrigos-token');
       const userData = localStorage.getItem('afrigos-user');
-      if (userData) {
-        try {
-          const parsedUser = JSON.parse(userData);
-          setUser(parsedUser);
-        } catch (error) {
-          localStorage.removeItem('afrigos-user');
-        }
+      
+      // If no token or user data, clear everything and set loading to false
+      if (!token || !userData) {
+        localStorage.removeItem('afrigos-token');
+        localStorage.removeItem('afrigos-user');
+        setUser(null);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        // Parse user data
+        const parsedUser = JSON.parse(userData);
+        
+        // Validate token with backend
+        const response = await fetch(`${API_BASE_URL}/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        // If token is invalid or expired, clear everything
+        if (!response.ok) {
+          localStorage.removeItem('afrigos-token');
+          localStorage.removeItem('afrigos-user');
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        // Token is valid, update user data from response
+        const result = await response.json();
+        if (result.data) {
+          const updatedUser: User = {
+            id: result.data.id,
+            email: result.data.email,
+            name: `${result.data.firstName || ''} ${result.data.lastName || ''}`.trim() || result.data.email,
+            role: result.data.role.toLowerCase() as 'admin' | 'vendor',
+            vendorId: result.data.vendorId,
+            vendorName: result.data.vendorName,
+            isActive: result.data.isActive,
+            isVerified: result.data.isVerified,
+          };
+          setUser(updatedUser);
+          // Update localStorage with fresh data
+          localStorage.setItem('afrigos-user', JSON.stringify(updatedUser));
+        } else {
+          // Fallback to existing user data if response format is different
+          setUser(parsedUser);
+        }
+      } catch (error) {
+        // If validation fails, clear everything
+        console.error('Auth validation error:', error);
+        localStorage.removeItem('afrigos-token');
+        localStorage.removeItem('afrigos-user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     checkAuth();
+
+    // Listen for storage events (when localStorage is cleared from another tab/window)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'afrigos-token' || e.key === 'afrigos-user') {
+        if (!localStorage.getItem('afrigos-token') || !localStorage.getItem('afrigos-user')) {
+          setUser(null);
+        } else {
+          // Re-validate if token was added
+          checkAuth();
+        }
+      }
+    };
+
+    // Listen for custom logout event (when localStorage is cleared from same window)
+    const handleLogoutEvent = () => {
+      setUser(null);
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth-logout', handleLogoutEvent);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth-logout', handleLogoutEvent);
+    };
   }, []);
 
   const login = async (email: string, password: string, userType: 'admin' | 'vendor'): Promise<boolean> => {
@@ -107,7 +184,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('afrigos-token');
     localStorage.removeItem('afrigos-user');
+    // Dispatch event for other components that might be listening
+    window.dispatchEvent(new CustomEvent('auth-logout'));
   };
 
   const value = {

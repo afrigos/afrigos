@@ -1,3 +1,5 @@
+import { apiFetch } from './api-client';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002/api/v1';
 
 class ApiService {
@@ -8,26 +10,8 @@ class ApiService {
   }
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
-    
-    try {
-      const response = await fetch(url, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
-        ...options,
-      });
-
-      if (!response.ok) {
-        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('API request error:', error);
-      throw error;
-    }
+    // Use apiFetch wrapper which handles 401 errors automatically
+    return apiFetch<T>(`${this.baseUrl}${endpoint}`, options);
   }
 
   // Health check
