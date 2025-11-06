@@ -2,9 +2,43 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { requireVendor, requireAdmin } from '../middleware/auth';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Configure multer for document uploads
+const documentStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/documents';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const documentUpload = multer({ 
+  storage: documentStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /pdf|jpg|jpeg|png/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Only PDF, JPG, JPEG, and PNG files are allowed'));
+    }
+  }
+});
 
 // @desc    Get vendor profile
 // @route   GET /api/v1/vendors/profile
@@ -98,7 +132,8 @@ router.post('/profile', requireVendor, [
       foundedYear,
       employees,
       revenue,
-      socialMedia
+      socialMedia,
+      categoryId
     } = req.body;
 
     // Check if vendor profile already exists
@@ -109,20 +144,25 @@ router.post('/profile', requireVendor, [
     let vendor;
     if (existingProfile) {
       // Update existing profile
+      const updateData: any = {
+        businessName,
+        businessType,
+        businessNumber,
+        taxId,
+        description,
+        website,
+        foundedYear,
+        employees,
+        revenue,
+        socialMedia: socialMedia ? JSON.parse(socialMedia) : null
+      };
+      
+      // Note: categoryId is stored at the product level, not vendor profile level
+      // We'll handle this when vendor creates products
+      
       vendor = await prisma.vendorProfile.update({
         where: { userId: req.user.id },
-        data: {
-          businessName,
-          businessType,
-          businessNumber,
-          taxId,
-          description,
-          website,
-          foundedYear,
-          employees,
-          revenue,
-          socialMedia: socialMedia ? JSON.parse(socialMedia) : null
-        },
+        data: updateData,
         include: {
           user: {
             select: {
@@ -484,6 +524,85 @@ router.patch('/:id/verify', requireAdmin, [
     res.status(500).json({
       success: false,
       message: 'Failed to update vendor verification'
+    });
+  }
+});
+
+// @desc    Upload vendor document
+// @route   POST /api/v1/vendors/documents
+// @access  Private (Vendor)
+router.post('/documents', requireVendor, documentUpload.single('file'), async (req: any, res: any) => {
+  try {
+    const { type } = req.body;
+    
+    if (!type) {
+      return res.status(400).json({
+        success: false,
+        message: 'Document type is required'
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    // Get vendor profile
+    const vendorProfile = await prisma.vendorProfile.findUnique({
+      where: { userId: req.user.id }
+    });
+
+    if (!vendorProfile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vendor profile not found'
+      });
+    }
+
+    // Check if document already exists
+    const existingDoc = await prisma.vendorDocument.findFirst({
+      where: {
+        vendorId: vendorProfile.id,
+        type: type as any
+      }
+    });
+
+    let document;
+    if (existingDoc) {
+      // Update existing document
+      document = await prisma.vendorDocument.update({
+        where: { id: existingDoc.id },
+        data: {
+          url: `/uploads/documents/${req.file.filename}`,
+          status: 'PENDING',
+          uploadedAt: new Date()
+        }
+      });
+    } else {
+      // Create new document
+      document = await prisma.vendorDocument.create({
+        data: {
+          vendorId: vendorProfile.id,
+          name: req.file.originalname,
+          type: type as any,
+          url: `/uploads/documents/${req.file.filename}`,
+          status: 'PENDING'
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Document uploaded successfully',
+      data: document
+    });
+  } catch (error: any) {
+    console.error('Upload document error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to upload document'
     });
   }
 });

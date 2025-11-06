@@ -22,6 +22,7 @@ import analyticsRoutes from './routes/analytics';
 import categoriesRoutes from './routes/categories';
 import vendorDashboardRoutes from './routes/vendor-dashboard';
 import adminProductsRoutes from './routes/admin-products';
+import bannerRoutes from './routes/banners';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -130,6 +131,7 @@ app.use('/api/v1/analytics', authenticate, analyticsRoutes);
 app.use('/api/v1/categories', categoriesRoutes);
 app.use('/api/v1/vendor', vendorDashboardRoutes);
 app.use('/api/v1/admin/products', adminProductsRoutes);
+app.use('/api/v1/banners', bannerRoutes);
 
 // Serve static files (uploads) with CORS headers
 app.use('/uploads', (req, res, next) => {

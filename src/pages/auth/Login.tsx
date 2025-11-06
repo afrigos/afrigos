@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,8 @@ import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { useLogin } from "@/hooks/useLogin";
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const isCustomerLogin = searchParams.has('redirect');
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -33,14 +35,16 @@ export default function Login() {
             <span className="text-white font-bold text-2xl">AG</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground">AfriGos</h1>
-          <p className="text-muted-foreground">Admin Dashboard</p>
+          <p className="text-muted-foreground">{isCustomerLogin ? 'Customer Login' : 'Admin Dashboard'}</p>
         </div>
 
         <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
             <CardDescription>
-              Sign in to your admin account to continue
+              {isCustomerLogin 
+                ? 'Sign in to your account to continue' 
+                : 'Sign in to your admin account to continue'}
             </CardDescription>
           </CardHeader>
           <CardContent>

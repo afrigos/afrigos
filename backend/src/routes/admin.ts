@@ -302,6 +302,7 @@ router.get('/vendors', requireAdmin, async (req, res) => {
 
       return {
         id: vendor.id,
+        vendorProfileId: vendor.vendorProfile?.id || vendor.id, // Include vendor profile ID for navigation
         name: vendor.vendorProfile?.businessName || `${vendor.firstName} ${vendor.lastName}`,
         email: vendor.email,
         phone: vendor.phone || 'N/A',

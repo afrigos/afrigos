@@ -162,13 +162,13 @@ export default function VendorLogin() {
               </TabsList>
               
               <TabsContent value="login" className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -277,8 +277,8 @@ export default function VendorLogin() {
                   </Button>
                 </TabsContent>
               </Tabs>
-            </CardContent>
-          </Card>
+          </CardContent>
+        </Card>
 
         {/* Footer */}
         <div className="text-center space-y-2">

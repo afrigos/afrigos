@@ -57,6 +57,7 @@ interface Product {
   totalRevenue: number;
   avgRating: number;
   reviewCount: number;
+  rejectionReason?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -479,16 +480,19 @@ export default function ProductManagement() {
     setShowViewModal(true);
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: string, hasReviewNote?: boolean) => {
     switch (status) {
       case 'APPROVED':
         return <Badge className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Approved</Badge>;
       case 'PENDING':
-        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Pending Review</Badge>;
       case 'REJECTED':
         return <Badge className="bg-red-100 text-red-800"><AlertCircle className="h-3 w-3 mr-1" />Rejected</Badge>;
       case 'DRAFT':
-        return <Badge className="bg-gray-100 text-gray-800">Draft</Badge>;
+        if (hasReviewNote) {
+          return <Badge className="bg-orange-100 text-orange-800"><AlertCircle className="h-3 w-3 mr-1" />Changes Requested</Badge>;
+        }
+        return <Badge className="bg-gray-100 text-gray-800"><Clock className="h-3 w-3 mr-1" />Draft</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
@@ -698,7 +702,39 @@ export default function ProductManagement() {
                         <span className="text-sm text-gray-900">{product.stock}</span>
                       </td>
                       <td className="py-4 px-4">
-                        {getStatusBadge(product.status)}
+                        <div className="space-y-1">
+                          {getStatusBadge(product.status, !!product.rejectionReason)}
+                          {product.rejectionReason && (
+                            <div className={`mt-2 p-2 border rounded text-sm ${
+                              product.status === 'REJECTED' 
+                                ? 'bg-red-50 border-red-200' 
+                                : product.status === 'DRAFT'
+                                ? 'bg-orange-50 border-orange-200'
+                                : 'bg-yellow-50 border-yellow-200'
+                            }`}>
+                              <p className={`font-medium mb-1 ${
+                                product.status === 'REJECTED' 
+                                  ? 'text-red-800' 
+                                  : product.status === 'DRAFT'
+                                  ? 'text-orange-800'
+                                  : 'text-yellow-800'
+                              }`}>
+                                {product.status === 'REJECTED' 
+                                  ? 'Rejection Reason:' 
+                                  : product.status === 'DRAFT'
+                                  ? 'Changes Requested:'
+                                  : 'Review Note:'}
+                              </p>
+                              <p className={
+                                product.status === 'REJECTED' 
+                                  ? 'text-red-700' 
+                                  : product.status === 'DRAFT'
+                                  ? 'text-orange-700'
+                                  : 'text-yellow-700'
+                              }>{product.rejectionReason}</p>
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4">
                         <div className="space-y-1">
@@ -1238,7 +1274,37 @@ export default function ProductManagement() {
                     </div>
                     <div>
                       <span className="text-sm font-medium text-gray-500">Status:</span>
-                      <div className="mt-1">{getStatusBadge(selectedProduct.status)}</div>
+                      <div className="mt-1">{getStatusBadge(selectedProduct.status, !!selectedProduct.rejectionReason)}</div>
+                      {selectedProduct.rejectionReason && (
+                        <div className={`mt-3 p-3 border rounded-lg ${
+                          selectedProduct.status === 'REJECTED' 
+                            ? 'bg-red-50 border-red-200' 
+                            : selectedProduct.status === 'DRAFT'
+                            ? 'bg-orange-50 border-orange-200'
+                            : 'bg-yellow-50 border-yellow-200'
+                        }`}>
+                          <p className={`text-sm font-semibold mb-1 ${
+                            selectedProduct.status === 'REJECTED' 
+                              ? 'text-red-800' 
+                              : selectedProduct.status === 'DRAFT'
+                              ? 'text-orange-800'
+                              : 'text-yellow-800'
+                          }`}>
+                            {selectedProduct.status === 'REJECTED' 
+                              ? 'Rejection Reason:' 
+                              : selectedProduct.status === 'DRAFT'
+                              ? 'Changes Requested:'
+                              : 'Review Note:'}
+                          </p>
+                          <p className={`text-sm ${
+                            selectedProduct.status === 'REJECTED' 
+                              ? 'text-red-700' 
+                              : selectedProduct.status === 'DRAFT'
+                              ? 'text-orange-700'
+                              : 'text-yellow-700'
+                          }`}>{selectedProduct.rejectionReason}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

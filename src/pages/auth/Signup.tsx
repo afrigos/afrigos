@@ -39,7 +39,7 @@ export default function Signup() {
       role: 'ADMIN'
     }, {
       onSuccess: () => {
-        navigate("/auth/login");
+      navigate("/auth/login");
       }
     });
   };

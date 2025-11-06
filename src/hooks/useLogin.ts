@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { API_BASE_URL } from '@/lib/api-config';
@@ -50,24 +50,25 @@ export const useLogin = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { setUser } = useAuth();
+  const [searchParams] = useSearchParams();
   
   return useMutation({
     mutationFn: loginApi,
     onSuccess: (data) => {
+      // Transform user data to match AuthContext interface
+      const transformedUser = {
+        id: data.data.user.id,
+        email: data.data.user.email,
+        name: `${data.data.user.firstName} ${data.data.user.lastName}`,
+        role: data.data.user.role.toLowerCase() as 'admin' | 'vendor',
+        avatar: null,
+        isActive: data.data.user.isActive,
+        isVerified: data.data.user.isVerified
+      };
+      
       if (data.data.token) {
         localStorage.setItem('afrigos-token', data.data.token);
         localStorage.setItem('afrigos-user', JSON.stringify(data.data.user));
-        
-        // Transform user data to match AuthContext interface
-        const transformedUser = {
-          id: data.data.user.id,
-          email: data.data.user.email,
-          name: `${data.data.user.firstName} ${data.data.user.lastName}`,
-          role: data.data.user.role.toLowerCase() as 'admin' | 'vendor',
-          avatar: null,
-          isActive: data.data.user.isActive,
-          isVerified: data.data.user.isVerified
-        };
         
         // Update AuthContext with the logged-in user
         setUser(transformedUser);
@@ -80,11 +81,23 @@ export const useLogin = () => {
         });
         navigate("/auth/pending-approval");
       } else {
+        // Check for redirect parameter
+        const redirectTo = searchParams.get('redirect');
+        
+        // Determine default redirect based on user role
+        let defaultRedirect = '/';
+        if (transformedUser.role === 'admin') {
+          defaultRedirect = '/admin';
+        } else if (transformedUser.role === 'vendor') {
+          defaultRedirect = '/vendor/dashboard';
+        }
+        
         toast({
           title: "Welcome back!",
-          description: "Successfully logged into AfriGos Admin Dashboard",
+          description: "Successfully logged in",
         });
-        navigate("/admin");
+        
+        navigate(redirectTo || defaultRedirect);
       }
     },
     onError: (error: Error) => {

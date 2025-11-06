@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, NotificationType } from '@prisma/client';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 
@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 // @access  Private (Admin)
 router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
   try {
-    const { page = 1, limit = 10, status, search, vendorId } = req.query;
+    const { page = 1, limit = 10, status, search, vendorId, categoryId } = req.query;
 
     // Build where clause
     const where: any = {};
@@ -29,6 +29,10 @@ router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
 
     if (vendorId) {
       where.vendorId = vendorId;
+    }
+
+    if (categoryId) {
+      where.categoryId = categoryId;
     }
 
     // Get products with pagination
@@ -111,7 +115,7 @@ router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
           page: parseInt(page as string),
           limit: parseInt(limit as string),
           total,
-          pages: Math.ceil(total / parseInt(limit as string))
+          totalPages: Math.ceil(total / parseInt(limit as string))
         }
       }
     });
@@ -208,11 +212,11 @@ router.get('/:id', authenticate, requireAdmin, async (req: any, res: any) => {
   }
 });
 
-// @desc    Approve or reject product
+// @desc    Approve, reject, or request changes for product
 // @route   PUT /api/v1/admin/products/:id/status
 // @access  Private (Admin)
 router.put('/:id/status', authenticate, requireAdmin, [
-  body('status').isIn(['APPROVED', 'REJECTED']).withMessage('Status must be APPROVED or REJECTED'),
+  body('status').isIn(['APPROVED', 'REJECTED', 'DRAFT']).withMessage('Status must be APPROVED, REJECTED, or DRAFT'),
   body('reason').optional().isString().withMessage('Reason must be a string')
 ], async (req: any, res: any) => {
   try {
@@ -254,12 +258,27 @@ router.put('/:id/status', authenticate, requireAdmin, [
     }
 
     // Update product status
+    const updateData: any = {
+      status,
+      isActive: status === 'APPROVED'
+    };
+    
+    // Store rejection reason if product is rejected
+    if (status === 'REJECTED' && reason) {
+      updateData.rejectionReason = reason;
+    } else if (status === 'APPROVED') {
+      // Clear rejection reason when approved
+      updateData.rejectionReason = null;
+    } else if (status === 'DRAFT' && reason) {
+      // Store review note for draft (request changes)
+      // Note: We can store this in rejectionReason or a separate field
+      // For now, storing in rejectionReason so vendors can see what needs to be changed
+      updateData.rejectionReason = reason;
+    }
+    
     const updatedProduct = await prisma.product.update({
       where: { id },
-      data: {
-        status,
-        isActive: status === 'APPROVED'
-      },
+      data: updateData,
       include: {
         vendor: {
           include: {
@@ -279,12 +298,30 @@ router.put('/:id/status', authenticate, requireAdmin, [
     });
 
     // Create notification for vendor
-    const notificationType = status === 'APPROVED' ? 'PRODUCT_APPROVED' : 'PRODUCT_REJECTED';
+    let notificationType: NotificationType;
+    let notificationTitle: string;
+    let notificationMessage: string;
+    
+    if (status === 'APPROVED') {
+      notificationType = NotificationType.PRODUCT_APPROVED;
+      notificationTitle = 'Product approved';
+      notificationMessage = `Your product "${product.name}" has been approved.${reason ? ` Note: ${reason}` : ''}`;
+    } else if (status === 'REJECTED') {
+      notificationType = NotificationType.PRODUCT_REJECTED;
+      notificationTitle = 'Product rejected';
+      notificationMessage = `Your product "${product.name}" has been rejected.${reason ? ` Reason: ${reason}` : ''}`;
+    } else {
+      // DRAFT - Request changes
+      notificationType = NotificationType.PRODUCT_REJECTED; // Using same type for now, or create a new one
+      notificationTitle = 'Changes requested';
+      notificationMessage = `Changes have been requested for your product "${product.name}".${reason ? ` Please review: ${reason}` : ''}`;
+    }
+    
     await prisma.notification.create({
       data: {
         userId: product.vendor.userId,
-        title: `Product ${status.toLowerCase()}`,
-        message: `Your product "${product.name}" has been ${status.toLowerCase()}.${reason ? ` Reason: ${reason}` : ''}`,
+        title: notificationTitle,
+        message: notificationMessage,
         type: notificationType,
         isRead: false
       }

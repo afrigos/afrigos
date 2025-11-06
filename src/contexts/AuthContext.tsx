@@ -53,9 +53,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
 
-      try {
+        try {
         // Parse user data
-        const parsedUser = JSON.parse(userData);
+          const parsedUser = JSON.parse(userData);
         
         // Validate token with backend
         const response = await fetch(`${API_BASE_URL}/auth/me`, {

@@ -10,11 +10,14 @@ import {
   CheckCircle,
   Clock,
   Eye,
-  ShoppingCart
+  ShoppingCart,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api-client";
 
 const kpiCards = [
   {
@@ -51,25 +54,94 @@ const kpiCards = [
   }
 ];
 
-const recentVendors = [
-  { name: "Mama Asha's Kitchen", type: "Food", status: "pending", location: "London", rating: 4.8 },
-  { name: "Adunni Beauty", type: "Beauty", status: "approved", location: "Manchester", rating: 4.9 },
-  { name: "Kente Collections", type: "Clothing", status: "pending", location: "Birmingham", rating: 4.6 },
-  { name: "Afro Herbs Ltd", type: "Herbal", status: "review", location: "Leeds", rating: 4.7 },
-];
+// Fetch recent vendors
+const fetchRecentVendors = async () => {
+  const response = await apiFetch<{
+    success: boolean;
+    data: Array<{
+      id: string;
+      vendorProfileId?: string;
+      name: string;
+      email: string;
+      businessType?: string;
+      status: string;
+      joinDate: string;
+      isActive: boolean;
+      isVerified: boolean;
+    }>;
+  }>('/admin/vendors');
+  
+  // Sort by joinDate (most recent first) and take top 4
+  return response.data
+    .sort((a, b) => new Date(b.joinDate).getTime() - new Date(a.joinDate).getTime())
+    .slice(0, 4);
+};
 
-const pendingTasks = [
-  { task: "Review 12 new vendor applications", priority: "high", type: "vendor" },
-  { task: "Approve 34 product listings", priority: "medium", type: "product" },
-  { task: "Resolve 3 customer complaints", priority: "high", type: "support" },
-  { task: "Security audit report review", priority: "medium", type: "security" },
-];
+// Fetch pending tasks counts
+const fetchPendingTasks = async () => {
+  const [vendorsResponse, productsResponse] = await Promise.all([
+    apiFetch<{ success: boolean; data: Array<{ isActive: boolean }> }>('/admin/vendors'),
+    apiFetch<{ success: boolean; data: Array<{ status: string }> }>('/admin/products?status=PENDING')
+  ]);
+
+  const pendingVendors = vendorsResponse.data.filter(v => !v.isActive).length;
+  const pendingProducts = productsResponse.data.length;
+
+  const tasks = [];
+  
+  if (pendingVendors > 0) {
+    tasks.push({
+      task: `Review ${pendingVendors} new vendor application${pendingVendors > 1 ? 's' : ''}`,
+      priority: 'high' as const,
+      type: 'vendor' as const,
+      count: pendingVendors,
+      action: '/admin/vendor-approval'
+    });
+  }
+
+  if (pendingProducts > 0) {
+    tasks.push({
+      task: `Approve ${pendingProducts} product listing${pendingProducts > 1 ? 's' : ''}`,
+      priority: 'medium' as const,
+      type: 'product' as const,
+      count: pendingProducts,
+      action: '/admin/product-approval'
+    });
+  }
+
+  // If no pending tasks, show a message
+  if (tasks.length === 0) {
+    tasks.push({
+      task: 'All caught up! No pending tasks.',
+      priority: 'low' as const,
+      type: 'info' as const,
+      count: 0,
+      action: null
+    });
+  }
+
+  return tasks;
+};
 
 export function DashboardOverview() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isExporting, setIsExporting] = useState(false);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  // Fetch recent vendors
+  const { data: recentVendors = [], isLoading: loadingVendors } = useQuery({
+    queryKey: ['recent-vendors'],
+    queryFn: fetchRecentVendors,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
+
+  // Fetch pending tasks
+  const { data: pendingTasks = [], isLoading: loadingTasks } = useQuery({
+    queryKey: ['pending-tasks'],
+    queryFn: fetchPendingTasks,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   const handleExportReport = async () => {
     setIsExporting(true);
@@ -125,6 +197,18 @@ export function DashboardOverview() {
         break;
       default:
         break;
+    }
+  };
+
+  const handleViewVendor = (vendor: { id: string; vendorProfileId?: string }) => {
+    // Use vendorProfileId if available, otherwise fall back to id
+    const profileId = vendor.vendorProfileId || vendor.id;
+    navigate(`/admin/vendor-store/${profileId}`);
+  };
+
+  const handleTaskAction = (action: string | null) => {
+    if (action) {
+      navigate(action);
     }
   };
 
@@ -187,37 +271,57 @@ export function DashboardOverview() {
             <CardDescription>Latest vendor registration requests</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentVendors.map((vendor, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex-1">
-                    <h4 className="font-medium text-foreground">{vendor.name}</h4>
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                      <span>{vendor.type}</span>
-                      <span>•</span>
-                      <span>{vendor.location}</span>
-                      <span>•</span>
-                      <span>★ {vendor.rating}</span>
+            {loadingVendors ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : recentVendors.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>No vendors found</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {recentVendors.map((vendor) => (
+                  <div key={vendor.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div className="flex-1">
+                      <h4 className="font-medium text-foreground">{vendor.name}</h4>
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <span>{vendor.businessType || 'N/A'}</span>
+                        <span>•</span>
+                        <span>{new Date(vendor.joinDate).toLocaleDateString()}</span>
+                        {vendor.isVerified && (
+                          <>
+                            <span>•</span>
+                            <Badge variant="outline" className="text-xs">Verified</Badge>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge 
+                        variant={vendor.status === 'approved' ? 'default' : 'secondary'}
+                        className={
+                          vendor.status === 'approved' ? 'bg-success text-success-foreground' :
+                          vendor.status === 'pending' ? 'bg-warning text-warning-foreground' :
+                          'bg-muted text-muted-foreground'
+                        }
+                      >
+                        {vendor.status}
+                      </Badge>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleViewVendor(vendor)}
+                        title="View vendor details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge 
-                      variant={vendor.status === 'approved' ? 'default' : 'secondary'}
-                      className={
-                        vendor.status === 'approved' ? 'bg-success text-success-foreground' :
-                        vendor.status === 'pending' ? 'bg-warning text-warning-foreground' :
-                        'bg-muted text-muted-foreground'
-                      }
-                    >
-                      {vendor.status}
-                    </Badge>
-                    <Button variant="ghost" size="sm">
-                      <Eye className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -231,26 +335,50 @@ export function DashboardOverview() {
             <CardDescription>Items requiring your attention</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {pendingTasks.map((task, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-2 h-2 rounded-full ${
-                      task.priority === 'high' ? 'bg-destructive' : 'bg-warning'
-                    }`} />
-                    <span className="text-sm font-medium text-foreground">{task.task}</span>
+            {loadingTasks ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingTasks.map((task, index) => (
+                  <div 
+                    key={index} 
+                    className={`flex items-center justify-between p-3 bg-muted/30 rounded-lg ${
+                      task.action ? 'cursor-pointer hover:bg-muted/50 transition-colors' : ''
+                    }`}
+                    onClick={() => task.action && handleTaskAction(task.action)}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-2 h-2 rounded-full ${
+                        task.priority === 'high' ? 'bg-destructive' : 
+                        task.priority === 'medium' ? 'bg-warning' : 
+                        'bg-muted'
+                      }`} />
+                      <span className="text-sm font-medium text-foreground">{task.task}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className="text-xs">
+                        {task.type}
+                      </Badge>
+                      {task.action && (
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTaskAction(task.action!);
+                          }}
+                          title="View task"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant="outline" className="text-xs">
-                      {task.type}
-                    </Badge>
-                    <Button variant="ghost" size="sm">
-                      <CheckCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

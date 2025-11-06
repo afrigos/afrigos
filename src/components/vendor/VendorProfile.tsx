@@ -1,4 +1,8 @@
 import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api-client";
+import { API_BASE_URL, BACKEND_URL } from "@/lib/api-config";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,7 +65,12 @@ import {
   CreditCard as CardIcon,
   Smartphone,
   Monitor,
-  Wifi
+  Wifi,
+  X,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -227,14 +236,182 @@ export function VendorProfile() {
   const [activeTab, setActiveTab] = useState("overview");
   const [isUploading, setIsUploading] = useState(false);
   const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({ current: "", new: "", confirm: "" });
+  const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
+  const [uploadingDocs, setUploadingDocs] = useState<{ [key: string]: boolean }>({});
 
-  const handleSave = () => {
-    toast({
-      title: "Profile Updated",
-      description: "Your profile has been updated successfully.",
-    });
-    setIsEditing(false);
-    setEditingSection(null);
+  // Fetch vendor profile
+  const { data: vendorProfile, isLoading: loadingProfile, refetch: refetchProfile } = useQuery({
+    queryKey: ['vendor-profile'],
+    queryFn: async () => {
+      const response = await apiFetch<{ success: boolean; data: any }>('/vendors/profile');
+      return response.data;
+    },
+    enabled: !!user,
+  });
+
+  // Fetch categories
+  const { data: categoriesData } = useQuery({
+    queryKey: ['categories'],
+    queryFn: async () => {
+      const response = await apiFetch<{ success: boolean; data: Array<{ id: string; name: string }> }>('/categories?limit=100');
+      return response.data || [];
+    },
+  });
+
+  // Check if vendor needs to submit documents
+  useEffect(() => {
+    if (vendorProfile && user?.isActive && vendorProfile.verificationStatus === 'VERIFIED') {
+      const requiredDocs = ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'INSURANCE', 'IDENTITY', 'BANK_STATEMENT'];
+      const submittedDocs = vendorProfile.documents?.map((d: any) => d.type) || [];
+      const missingDocs = requiredDocs.filter(doc => !submittedDocs.includes(doc));
+      
+      if (missingDocs.length > 0 && !showDocumentModal) {
+        setShowDocumentModal(true);
+      }
+    }
+  }, [vendorProfile, user, showDocumentModal]);
+
+  // Update profile when data is fetched
+  useEffect(() => {
+    if (vendorProfile) {
+      setProfile({
+        ...profile,
+        business: {
+          ...profile.business,
+          businessName: vendorProfile.businessName || profile.business.businessName,
+          businessType: vendorProfile.businessType || profile.business.businessType,
+          businessNumber: vendorProfile.businessNumber || profile.business.businessNumber,
+          taxId: vendorProfile.taxId || profile.business.taxId,
+          description: vendorProfile.description || profile.business.description,
+          website: vendorProfile.website || profile.business.website,
+        },
+      });
+    }
+  }, [vendorProfile]);
+
+  // Save profile mutation
+  const saveProfileMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return apiFetch('/vendors/profile', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been updated successfully.",
+      });
+      setIsEditing(false);
+      setEditingSection(null);
+      refetchProfile();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSave = async () => {
+    const businessData = {
+      businessName: profile.business.businessName,
+      businessType: profile.business.businessType,
+      businessNumber: profile.business.businessNumber,
+      taxId: profile.business.taxId,
+      description: profile.business.description,
+      website: profile.business.website,
+      foundedYear: profile.business.foundedYear,
+      employees: profile.business.employees,
+      revenue: profile.business.revenue,
+    };
+    saveProfileMutation.mutate(businessData);
+  };
+
+  // Handle document upload
+  const handleDocumentUpload = async (type: string, file: File) => {
+    setUploadingDocs(prev => ({ ...prev, [type]: true }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', type);
+      
+      const token = localStorage.getItem('afrigos-token');
+      const response = await fetch(`${BACKEND_URL}/api/v1/vendors/documents`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload document');
+      }
+
+      toast({
+        title: "Document Uploaded",
+        description: "Your document has been uploaded successfully and is pending review.",
+      });
+      refetchProfile();
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload document. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingDocs(prev => ({ ...prev, [type]: false }));
+    }
+  };
+
+  // Handle password change
+  const handlePasswordChange = async () => {
+    if (passwordData.new !== passwordData.confirm) {
+      toast({
+        title: "Password Mismatch",
+        description: "New password and confirmation do not match.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (passwordData.new.length < 8) {
+      toast({
+        title: "Password Too Short",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await apiFetch('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: passwordData.current,
+          newPassword: passwordData.new,
+        }),
+      });
+
+      toast({
+        title: "Password Changed",
+        description: "Your password has been changed successfully.",
+      });
+      setShowPasswordModal(false);
+      setPasswordData({ current: "", new: "", confirm: "" });
+    } catch (error: any) {
+      toast({
+        title: "Password Change Failed",
+        description: error.message || "Failed to change password. Please check your current password.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -576,7 +753,7 @@ export function VendorProfile() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Business Type</label>
+                  <Label className="text-sm font-medium">Business Type</Label>
                   <Select
                     value={profile.business.businessType}
                     onValueChange={(value) => setProfile({
@@ -591,6 +768,26 @@ export function VendorProfile() {
                     <SelectContent>
                       {BUSINESS_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>{type}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-sm font-medium">Category</Label>
+                  <Select
+                    value={(profile.business as any).categoryId || ""}
+                    onValueChange={(value) => setProfile({
+                      ...profile,
+                      business: { ...profile.business, categoryId: value } as any
+                    })}
+                    disabled={!isEditing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoriesData?.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -683,7 +880,7 @@ export function VendorProfile() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium">Business Description</label>
+                <Label className="text-sm font-medium">Business Description</Label>
                 <Textarea
                   value={profile.business.description}
                   onChange={(e) => setProfile({
@@ -695,6 +892,74 @@ export function VendorProfile() {
                   placeholder="Describe your business..."
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Document Upload Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Required Documents</CardTitle>
+              <CardDescription>Upload required documents for verification</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {[
+                { type: 'BUSINESS_LICENSE', label: 'Business License', required: true },
+                { type: 'TAX_CERTIFICATE', label: 'Tax Certificate', required: true },
+                { type: 'INSURANCE', label: 'Insurance Certificate', required: true },
+                { type: 'IDENTITY', label: 'Identity Document', required: true },
+                { type: 'BANK_STATEMENT', label: 'Bank Statement', required: true },
+              ].map((doc) => {
+                const existingDoc = vendorProfile?.documents?.find((d: any) => d.type === doc.type);
+                return (
+                  <div key={doc.type} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <Label className="text-sm font-medium">{doc.label}</Label>
+                      {existingDoc && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Status: <Badge variant={existingDoc.status === 'VERIFIED' ? 'default' : 'secondary'}>{existingDoc.status}</Badge>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleDocumentUpload(doc.type, file);
+                          }
+                        }}
+                        disabled={uploadingDocs[doc.type]}
+                        className="hidden"
+                        id={`doc-${doc.type}`}
+                      />
+                      <Label htmlFor={`doc-${doc.type}`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={uploadingDocs[doc.type]}
+                          asChild
+                        >
+                          <span>
+                            {uploadingDocs[doc.type] ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="h-4 w-4 mr-2" />
+                                {existingDoc ? 'Replace' : 'Upload'}
+                              </>
+                            )}
+                          </span>
+                        </Button>
+                      </Label>
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </TabsContent>
@@ -779,86 +1044,12 @@ export function VendorProfile() {
 
         {/* Preferences Tab */}
         <TabsContent value="preferences" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Preferences</CardTitle>
-                <CardDescription>Customize your account settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Language</label>
-                  <Select
-                    value={profile.preferences.language}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      preferences: { ...profile.preferences, language: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LANGUAGES.map((lang) => (
-                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Currency</label>
-                  <Select
-                    value={profile.preferences.currency}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      preferences: { ...profile.preferences, currency: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GBP">British Pound (GBP)</SelectItem>
-                      <SelectItem value="USD">US Dollar (USD)</SelectItem>
-                      <SelectItem value="EUR">Euro (EUR)</SelectItem>
-                      <SelectItem value="NGN">Nigerian Naira (NGN)</SelectItem>
-                      <SelectItem value="GHS">Ghanaian Cedi (GHS)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Timezone</label>
-                  <Select
-                    value={profile.preferences.timezone}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      preferences: { ...profile.preferences, timezone: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Europe/London">London (GMT)</SelectItem>
-                      <SelectItem value="Africa/Lagos">Lagos (WAT)</SelectItem>
-                      <SelectItem value="Africa/Accra">Accra (GMT)</SelectItem>
-                      <SelectItem value="Africa/Nairobi">Nairobi (EAT)</SelectItem>
-                      <SelectItem value="Africa/Johannesburg">Johannesburg (SAST)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Notification Preferences</CardTitle>
-                <CardDescription>Choose how you want to be notified</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Preferences</CardTitle>
+              <CardDescription>Choose how you want to be notified</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <label className="text-sm font-medium">Email Notifications</label>
@@ -946,7 +1137,6 @@ export function VendorProfile() {
                 </div>
               </CardContent>
             </Card>
-          </div>
         </TabsContent>
 
         {/* Security Tab */}
@@ -958,26 +1148,13 @@ export function VendorProfile() {
                 <CardDescription>Manage your account security</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Two-Factor Authentication</label>
-                    <p className="text-xs text-muted-foreground">Add an extra layer of security</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge className={profile.security.twoFactorEnabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
-                      {profile.security.twoFactorEnabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                    <Button variant="outline" size="sm">
-                      {profile.security.twoFactorEnabled ? 'Disable' : 'Enable'}
-                    </Button>
-                  </div>
-                </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Last Password Change</label>
+                  <Label className="text-sm font-medium">Password</Label>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(profile.security.lastPasswordChange).toLocaleDateString()}
+                    Last changed: {new Date(profile.security.lastPasswordChange).toLocaleDateString()}
                   </p>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" onClick={() => setShowPasswordModal(true)}>
+                    <Lock className="h-4 w-4 mr-2" />
                     Change Password
                   </Button>
                 </div>
@@ -1020,6 +1197,132 @@ export function VendorProfile() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Document Submission Modal */}
+      <Dialog open={showDocumentModal} onOpenChange={setShowDocumentModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-warning" />
+              <span>Document Submission Required</span>
+            </DialogTitle>
+            <DialogDescription>
+              As an approved vendor, you need to submit the following required documents to continue using the platform.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Please go to the <strong>Business</strong> tab and upload the following documents:
+            </p>
+            <ul className="list-disc list-inside space-y-2 text-sm">
+              <li>Business License</li>
+              <li>Tax Certificate</li>
+              <li>Insurance Certificate</li>
+              <li>Identity Document</li>
+              <li>Bank Statement</li>
+            </ul>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => setShowDocumentModal(false)}>
+                I'll do it later
+              </Button>
+              <Button onClick={() => {
+                setShowDocumentModal(false);
+                setActiveTab("business");
+              }}>
+                Go to Business Tab
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Password Change Modal */}
+      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="current-password">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="current-password"
+                  type={showPassword.current ? "text" : "password"}
+                  value={passwordData.current}
+                  onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword({ ...showPassword, current: !showPassword.current })}
+                >
+                  {showPassword.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="new-password">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showPassword.new ? "text" : "password"}
+                  value={passwordData.new}
+                  onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
+                >
+                  {showPassword.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="confirm-password">Confirm New Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showPassword.confirm ? "text" : "password"}
+                  value={passwordData.confirm}
+                  onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
+                >
+                  {showPassword.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div className="flex justify-end space-x-2">
+              <Button variant="outline" onClick={() => {
+                setShowPasswordModal(false);
+                setPasswordData({ current: "", new: "", confirm: "" });
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={handlePasswordChange}>
+                Change Password
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

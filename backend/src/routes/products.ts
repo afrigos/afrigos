@@ -4,28 +4,14 @@ import { authenticate, requireVendor, requireAdmin } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import cloudinary from '../config/cloudinary';
 
 const router = Router();
 const prisma = new PrismaClient();
 
-// Configure multer for image uploads
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/products';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
+// Configure multer for memory storage (we'll upload to Cloudinary)
+const upload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
@@ -39,6 +25,53 @@ const upload = multer({
     }
   }
 });
+
+// Helper function to upload image buffer to Cloudinary
+const uploadToCloudinary = (buffer: Buffer, folder: string = 'products'): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload_stream(
+      {
+        folder: folder,
+        resource_type: 'image',
+        transformation: [
+          { width: 1200, height: 1200, crop: 'limit', quality: 'auto' }
+        ]
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(result!.secure_url);
+        }
+      }
+    ).end(buffer);
+  });
+};
+
+// Helper function to delete image from Cloudinary
+const deleteFromCloudinary = (imageUrl: string): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    // Extract public_id from Cloudinary URL
+    try {
+      const urlParts = imageUrl.split('/');
+      const publicIdWithExt = urlParts.slice(-2).join('/').split('.')[0];
+      cloudinary.uploader.destroy(publicIdWithExt, (error, result) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+};
+
+// Helper function to check if URL is from Cloudinary
+const isCloudinaryUrl = (url: string): boolean => {
+  return url.includes('cloudinary.com') || url.includes('res.cloudinary.com');
+};
 
 // Product sourcing types
 enum ProductSourcing {
@@ -54,6 +87,419 @@ enum ProductStatus {
   REJECTED = 'REJECTED',
   INACTIVE = 'INACTIVE'
 }
+
+// ========== PUBLIC PRODUCT ENDPOINTS (No Authentication Required) ==========
+
+// @desc    Get all public products (for customers)
+// @route   GET /api/v1/products/public
+// @access  Public
+router.get('/public', async (req: any, res: any) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      category, 
+      search, 
+      sort = 'newest',
+      minPrice,
+      maxPrice,
+      vendorId
+    } = req.query;
+
+    // Build where clause
+    const where: any = {
+      status: 'APPROVED',
+      isActive: true
+    };
+
+    if (category) {
+      where.categoryId = category;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+        { tags: { has: search } }
+      ];
+    }
+
+    if (vendorId) {
+      where.vendorId = vendorId;
+    }
+
+    if (minPrice || maxPrice) {
+      where.price = {};
+      if (minPrice) {
+        where.price.gte = parseFloat(minPrice as string);
+      }
+      if (maxPrice) {
+        where.price.lte = parseFloat(maxPrice as string);
+      }
+    }
+
+    // Build orderBy clause
+    let orderBy: any = { createdAt: 'desc' };
+    switch (sort) {
+      case 'price-low':
+        orderBy = { price: 'asc' };
+        break;
+      case 'price-high':
+        orderBy = { price: 'desc' };
+        break;
+      case 'name':
+        orderBy = { name: 'asc' };
+        break;
+      case 'newest':
+        orderBy = { createdAt: 'desc' };
+        break;
+      case 'popular':
+        // Order by number of order items
+        orderBy = { createdAt: 'desc' }; // Will be enhanced later with actual sales data
+        break;
+    }
+
+    // Get products with pagination
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: {
+          vendor: {
+            select: {
+              id: true,
+              businessName: true,
+              user: {
+                select: {
+                  email: true
+                }
+              }
+            }
+          },
+          category: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          reviews: {
+            select: {
+              rating: true
+            }
+          },
+          _count: {
+            select: {
+              orderItems: true
+            }
+          }
+        },
+        orderBy,
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit)
+      }),
+      prisma.product.count({ where })
+    ]);
+
+    // Transform products
+    const transformedProducts = products.map(product => {
+      const avgRating = product.reviews.length > 0
+        ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length
+        : 0;
+
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: Number(product.price),
+        comparePrice: product.comparePrice ? Number(product.comparePrice) : null,
+        sku: product.sku,
+        stock: product.stock,
+        images: product.images,
+        tags: product.tags,
+        vendor: {
+          id: product.vendor.id,
+          businessName: product.vendor.businessName,
+          email: product.vendor.user.email
+        },
+        category: product.category,
+        rating: Math.round(avgRating * 10) / 10,
+        reviewCount: product.reviews.length,
+        salesCount: product._count.orderItems,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: transformedProducts,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Get public products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch products'
+    });
+  }
+});
+
+// @desc    Get featured products
+// @route   GET /api/v1/products/public/featured
+// @access  Public
+router.get('/public/featured', async (req: any, res: any) => {
+  try {
+    const { limit = 12 } = req.query;
+
+    const products = await prisma.product.findMany({
+      where: {
+        status: 'APPROVED',
+        isActive: true,
+        isFeatured: true
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true,
+            user: {
+              select: {
+                email: true
+              }
+            }
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        reviews: {
+          select: {
+            rating: true
+          }
+        },
+        _count: {
+          select: {
+            orderItems: true
+          }
+        }
+      },
+      orderBy: [
+        { isFeatured: 'desc' },
+        { createdAt: 'desc' }
+      ],
+      take: Number(limit)
+    });
+
+    const transformedProducts = products.map(product => {
+      const avgRating = product.reviews.length > 0
+        ? product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length
+        : 0;
+
+      return {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: Number(product.price),
+        comparePrice: product.comparePrice ? Number(product.comparePrice) : null,
+        sku: product.sku,
+        stock: product.stock,
+        images: product.images,
+        tags: product.tags,
+        vendor: {
+          id: product.vendor.id,
+          businessName: product.vendor.businessName,
+          email: product.vendor.user.email
+        },
+        category: product.category,
+        rating: Math.round(avgRating * 10) / 10,
+        reviewCount: product.reviews.length,
+        salesCount: product._count.orderItems,
+        createdAt: product.createdAt
+      };
+    });
+
+    res.json({
+      success: true,
+      data: transformedProducts
+    });
+  } catch (error) {
+    console.error('Get featured products error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch featured products'
+    });
+  }
+});
+
+// @desc    Get single public product by ID
+// @route   GET /api/v1/products/public/:id
+// @access  Public
+router.get('/public/:id', async (req: any, res: any) => {
+  try {
+    const { id } = req.params;
+
+    const product = await prisma.product.findFirst({
+      where: {
+        id,
+        status: 'APPROVED',
+        isActive: true
+      },
+      include: {
+        vendor: {
+          include: {
+            user: {
+              select: {
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            }
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            description: true
+          }
+        },
+        reviews: {
+          include: {
+            customer: {
+              select: {
+                firstName: true,
+                lastName: true,
+                avatar: true
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 10
+        },
+        _count: {
+          select: {
+            orderItems: true,
+            reviews: true
+          }
+        }
+      }
+    }) as any;
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    // Calculate average rating
+    const avgRating = product.reviews && product.reviews.length > 0
+      ? product.reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / product.reviews.length
+      : 0;
+
+    // Get related products (same category, different product)
+    const relatedProducts = await prisma.product.findMany({
+      where: {
+        categoryId: product.categoryId,
+        id: { not: product.id },
+        status: 'APPROVED',
+        isActive: true
+      },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true
+          }
+        },
+        category: {
+          select: {
+            id: true,
+            name: true
+          }
+        },
+        reviews: {
+          select: {
+            rating: true
+          }
+        }
+      },
+      take: 8
+    });
+
+    const transformedRelatedProducts = relatedProducts.map((p: any) => {
+      const rating = p.reviews && p.reviews.length > 0
+        ? p.reviews.reduce((sum: number, r: any) => sum + r.rating, 0) / p.reviews.length
+        : 0;
+      return {
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        comparePrice: p.comparePrice ? Number(p.comparePrice) : null,
+        images: p.images,
+        vendor: p.vendor,
+        category: p.category,
+        rating: Math.round(rating * 10) / 10,
+        reviewCount: p.reviews?.length || 0
+      };
+    });
+
+    // Transform reviews
+    const transformedReviews = (product.reviews || []).map((review: any) => ({
+      id: review.id,
+      rating: review.rating,
+      comment: review.comment,
+      user: review.customer,
+      createdAt: review.createdAt
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        price: Number(product.price),
+        comparePrice: product.comparePrice ? Number(product.comparePrice) : null,
+        sku: product.sku,
+        stock: product.stock,
+        images: product.images,
+        tags: product.tags,
+        vendor: {
+          id: product.vendor?.id || '',
+          businessName: product.vendor?.businessName || '',
+          email: product.vendor?.user?.email || '',
+          contactName: product.vendor?.user ? `${product.vendor.user.firstName} ${product.vendor.user.lastName}` : ''
+        },
+        category: product.category || null,
+        rating: Math.round(avgRating * 10) / 10,
+        reviewCount: product._count?.reviews || 0,
+        salesCount: product._count?.orderItems || 0,
+        reviews: transformedReviews,
+        relatedProducts: transformedRelatedProducts,
+        createdAt: product.createdAt,
+        updatedAt: product.updatedAt
+      }
+    });
+  } catch (error) {
+    console.error('Get public product error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch product'
+    });
+  }
+});
+
+// ========== VENDOR PRODUCT ENDPOINTS (Authentication Required) ==========
 
 // @desc    Get all products for a vendor
 // @route   GET /api/v1/products
@@ -161,6 +607,7 @@ router.get('/', authenticate, requireVendor, async (req: any, res: any) => {
         totalRevenue,
         avgRating: Math.round(avgRating * 10) / 10,
         reviewCount: product.reviews.length,
+        rejectionReason: product.rejectionReason || null,
         createdAt: product.createdAt,
         updatedAt: product.updatedAt
       };
@@ -369,8 +816,22 @@ router.post('/', authenticate, requireVendor, upload.array('images', 5), [
       });
     }
 
-    // Handle uploaded images
-    const images = req.files ? req.files.map((file: any) => file.path) : [];
+    // Handle uploaded images - upload to Cloudinary
+    let images: string[] = [];
+    if (req.files && req.files.length > 0) {
+      try {
+        const uploadPromises = req.files.map((file: any) => 
+          uploadToCloudinary(file.buffer, 'products')
+        );
+        images = await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Error uploading images to Cloudinary:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload images'
+        });
+      }
+    }
 
     // Generate unique SKU if not provided or if it already exists
     let finalSku = sku || `PROD-${Date.now()}`;
@@ -494,15 +955,59 @@ router.put('/:id', authenticate, requireVendor, upload.array('images', 5), [
     if (req.body.sku) updateData.sku = req.body.sku;
     if (req.body.tags) updateData.tags = typeof req.body.tags === 'string' ? req.body.tags.split(',').map((tag: string) => tag.trim()) : req.body.tags;
 
-    // Handle new images
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map((file: any) => file.path);
-      updateData.images = [...existingProduct.images, ...newImages];
+    // Handle images - can be existing URLs or new uploads
+    if (req.body.existingImages) {
+      // If existingImages is provided, use those (might be a mix of Cloudinary URLs and new uploads)
+      const existingImages = typeof req.body.existingImages === 'string' 
+        ? JSON.parse(req.body.existingImages) 
+        : req.body.existingImages;
+      
+      let finalImages: string[] = Array.isArray(existingImages) ? existingImages : [];
+      
+      // Upload any new images to Cloudinary
+      if (req.files && req.files.length > 0) {
+        try {
+          const uploadPromises = req.files.map((file: any) => 
+            uploadToCloudinary(file.buffer, 'products')
+          );
+          const newImages = await Promise.all(uploadPromises);
+          finalImages = [...finalImages, ...newImages];
+        } catch (error) {
+          console.error('Error uploading images to Cloudinary:', error);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to upload images'
+          });
+        }
+      }
+      
+      updateData.images = finalImages;
+    } else if (req.files && req.files.length > 0) {
+      // If no existingImages provided, upload new images and append to existing
+      try {
+        const uploadPromises = req.files.map((file: any) => 
+          uploadToCloudinary(file.buffer, 'products')
+        );
+        const newImages = await Promise.all(uploadPromises);
+        updateData.images = [...existingProduct.images, ...newImages];
+      } catch (error) {
+        console.error('Error uploading images to Cloudinary:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload images'
+        });
+      }
     }
 
-    // If product was approved and is being updated, set status back to pending
-    if (existingProduct.status === ProductStatus.APPROVED) {
+    // If product was approved or has been sent back for changes (DRAFT with rejectionReason),
+    // and vendor is updating it, set status back to pending for re-review
+    const productWithReason = existingProduct as any;
+    if (existingProduct.status === ProductStatus.APPROVED || 
+        (existingProduct.status === ProductStatus.DRAFT && productWithReason.rejectionReason)) {
       updateData.status = ProductStatus.PENDING;
+      // Clear rejection reason when vendor resubmits after making corrections
+      // This allows for a fresh review cycle
+      updateData.rejectionReason = null;
     }
 
     const product = await prisma.product.update({
@@ -567,6 +1072,22 @@ router.delete('/:id', authenticate, requireVendor, async (req: any, res: any) =>
         success: false,
         message: 'Product not found'
       });
+    }
+
+    // Delete images from Cloudinary if they're Cloudinary URLs
+    if (product.images && product.images.length > 0) {
+      try {
+        const deletePromises = product.images
+          .filter((url: string) => isCloudinaryUrl(url))
+          .map((url: string) => deleteFromCloudinary(url).catch(err => {
+            console.error(`Error deleting image ${url}:`, err);
+            // Continue even if deletion fails
+          }));
+        await Promise.all(deletePromises);
+      } catch (error) {
+        console.error('Error deleting images from Cloudinary:', error);
+        // Continue with product deletion even if image deletion fails
+      }
     }
 
     // Delete product

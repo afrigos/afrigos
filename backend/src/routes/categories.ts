@@ -32,14 +32,9 @@ router.get('/', async (req: any, res: any) => {
       where.type = type as any; // Cast to the enum type
     }
 
-    // Get categories with product counts
+    // Get categories
     const categories = await prisma.category.findMany({
       where,
-      include: {
-        _count: {
-          select: { products: true }
-        }
-      },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -51,12 +46,23 @@ router.get('/', async (req: any, res: any) => {
 
     // Transform data to include real vendor counts and revenue
     const transformedCategories = await Promise.all(paginatedCategories.map(async (category) => {
-      // Get unique vendors for this category
+      // Count only APPROVED and active products for this category
+      const productCount = await prisma.product.count({
+        where: {
+          categoryId: category.id,
+          status: 'APPROVED',
+          isActive: true
+        }
+      });
+
+      // Get unique vendors for this category (only those with approved products)
       const vendorCount = await prisma.vendorProfile.count({
         where: {
           products: {
             some: {
-              categoryId: category.id
+              categoryId: category.id,
+              status: 'APPROVED',
+              isActive: true
             }
           }
         }
@@ -66,7 +72,9 @@ router.get('/', async (req: any, res: any) => {
       const revenueResult = await prisma.orderItem.aggregate({
         where: {
           product: {
-            categoryId: category.id
+            categoryId: category.id,
+            status: 'APPROVED',
+            isActive: true
           },
           order: {
             paymentStatus: 'COMPLETED'
@@ -84,7 +92,7 @@ router.get('/', async (req: any, res: any) => {
         type: category.type,
         status: category.isActive ? 'active' : 'inactive',
         vendorCount,
-        productCount: category._count.products,
+        productCount,
         revenue: `£${(revenueResult._sum.total || 0).toLocaleString()}`,
         createdAt: category.createdAt.toISOString().split('T')[0],
         updatedAt: category.updatedAt.toISOString().split('T')[0]
@@ -116,12 +124,7 @@ router.get('/:id', async (req: any, res: any) => {
     const { id } = req.params;
     
     const category = await prisma.category.findUnique({
-      where: { id },
-      include: {
-        _count: {
-          select: { products: true }
-        }
-      }
+      where: { id }
     });
 
     if (!category) {
@@ -131,12 +134,23 @@ router.get('/:id', async (req: any, res: any) => {
       });
     }
 
-    // Get real vendor count for this category
+    // Count only APPROVED and active products for this category
+    const productCount = await prisma.product.count({
+      where: {
+        categoryId: category.id,
+        status: 'APPROVED',
+        isActive: true
+      }
+    });
+
+    // Get unique vendors for this category (only those with approved products)
     const vendorCount = await prisma.vendorProfile.count({
       where: {
         products: {
           some: {
-            categoryId: category.id
+            categoryId: category.id,
+            status: 'APPROVED',
+            isActive: true
           }
         }
       }
@@ -146,7 +160,9 @@ router.get('/:id', async (req: any, res: any) => {
     const revenueResult = await prisma.orderItem.aggregate({
       where: {
         product: {
-          categoryId: category.id
+          categoryId: category.id,
+          status: 'APPROVED',
+          isActive: true
         },
         order: {
           paymentStatus: 'COMPLETED'
@@ -164,7 +180,7 @@ router.get('/:id', async (req: any, res: any) => {
       type: category.type,
       status: category.isActive ? 'active' : 'inactive',
       vendorCount,
-      productCount: category._count.products,
+      productCount,
       revenue: `£${(revenueResult._sum.total || 0).toLocaleString()}`,
       createdAt: category.createdAt.toISOString().split('T')[0],
       updatedAt: category.updatedAt.toISOString().split('T')[0]

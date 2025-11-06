@@ -14,7 +14,14 @@ import OrderTracking from "./pages/OrderTracking";
 import Signup from "./pages/auth/Signup";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { AuthRedirect } from "./components/AuthRedirect";
+import { CartProvider } from "./contexts/CartContext";
+import { CustomerLayout } from "./components/customer/CustomerLayout";
+import Marketplace from "./pages/Marketplace";
+import ProductListing from "./pages/ProductListing";
+import ProductDetail from "./pages/ProductDetail";
+import Cart from "./pages/Cart";
+import Checkout from "./pages/Checkout";
+import OrderConfirmation from "./pages/OrderConfirmation";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -54,41 +61,79 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Customer Protected Route Component (for checkout)
+const CustomerProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+  
+  if (!isAuthenticated) {
+    const currentPath = window.location.pathname;
+    return <Navigate to={`/auth/login?redirect=${encodeURIComponent(currentPath)}`} replace />;
+  }
+  
+  return <>{children}</>;
+};
+
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Authentication Routes */}
-            <Route path="/auth/login" element={<Login />} />
-            <Route path="/auth/vendor-login" element={<VendorLogin />} />
-            <Route path="/auth/vendor-signup" element={<VendorSignup />} />
-            <Route path="/auth/pending-approval" element={<PendingApproval />} />
-            <Route path="/auth/signup" element={<Signup />} />
-            <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-            
-            {/* Public Routes */}
-            <Route path="/track" element={<OrderTracking />} />
-            
-            {/* Protected Admin Routes */}
-            <Route path="/admin/*" element={<AdminProtectedRoute><Index /></AdminProtectedRoute>} />
-            
-            {/* Protected Vendor Routes */}
-            <Route path="/vendor/*" element={<VendorProtectedRoute><VendorLayout /></VendorProtectedRoute>} />
-            
-            {/* Default Route */}
-            <Route path="/" element={<AuthRedirect />} />
-            
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <CartProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Authentication Routes */}
+              <Route path="/auth/login" element={<Login />} />
+              <Route path="/auth/vendor-login" element={<VendorLogin />} />
+              <Route path="/auth/vendor-signup" element={<VendorSignup />} />
+              <Route path="/auth/pending-approval" element={<PendingApproval />} />
+              <Route path="/auth/signup" element={<Signup />} />
+              <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+              
+              {/* Customer Marketplace Routes */}
+              <Route path="/" element={<CustomerLayout><Marketplace /></CustomerLayout>} />
+              <Route path="/products" element={<CustomerLayout><ProductListing /></CustomerLayout>} />
+              <Route path="/category/:categoryId" element={<CustomerLayout><ProductListing /></CustomerLayout>} />
+              <Route path="/product/:productId" element={<CustomerLayout><ProductDetail /></CustomerLayout>} />
+              <Route path="/cart" element={<CustomerLayout><Cart /></CustomerLayout>} />
+              <Route 
+                path="/checkout" 
+                element={
+                  <CustomerProtectedRoute>
+                    <CustomerLayout><Checkout /></CustomerLayout>
+                  </CustomerProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/order/:orderId/confirmation" 
+                element={
+                  <CustomerProtectedRoute>
+                    <CustomerLayout><OrderConfirmation /></CustomerLayout>
+                  </CustomerProtectedRoute>
+                } 
+              />
+              
+              {/* Public Routes */}
+              <Route path="/track" element={<CustomerLayout><OrderTracking /></CustomerLayout>} />
+              
+              {/* Protected Admin Routes */}
+              <Route path="/admin/*" element={<AdminProtectedRoute><Index /></AdminProtectedRoute>} />
+              
+              {/* Protected Vendor Routes */}
+              <Route path="/vendor/*" element={<VendorProtectedRoute><VendorLayout /></VendorProtectedRoute>} />
+              
+              {/* Catch-all route */}
+              <Route path="*" element={<CustomerLayout><NotFound /></CustomerLayout>} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </CartProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

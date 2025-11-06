@@ -1,9 +1,13 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
+import { authenticate } from '../middleware/auth';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Apply authentication to all routes
+router.use(authenticate);
 
 // @desc    Get orders
 // @route   GET /api/v1/orders
@@ -181,30 +185,43 @@ router.post('/', [
       });
     }
 
-    const { items, shippingAddress, billingAddress, notes, paymentMethod } = req.body;
+    const { items, shippingAddress, billingAddress, notes, paymentMethod, totalAmount, shippingCost } = req.body;
 
     // Generate order number
     const orderNumber = `AFG-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
-    // Calculate totals
-    let totalAmount = 0;
+    // Validate items and get vendor/product info
     const orderItems = [];
+    const vendorIds = new Set<string>();
 
     for (const item of items) {
       const product = await prisma.product.findUnique({
-        where: { id: item.productId }
+        where: { id: item.productId },
+        include: {
+          vendor: {
+            select: { id: true }
+          }
+        }
       });
 
-      if (!product || !product.isActive) {
+      if (!product || !product.isActive || product.status !== 'APPROVED') {
         return res.status(400).json({
           success: false,
-          message: `Product ${item.productId} not found or inactive`
+          message: `Product ${item.productId} not found or unavailable`
         });
       }
 
-      const itemTotal = Number(product.price) * Number(item.quantity);
-      totalAmount += itemTotal;
+      // Check stock
+      if (product.stock < item.quantity) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient stock for ${product.name}. Available: ${product.stock}`
+        });
+      }
 
+      vendorIds.add(product.vendor.id);
+
+      const itemTotal = Number(product.price) * Number(item.quantity);
       orderItems.push({
         productId: item.productId,
         quantity: item.quantity,
@@ -213,15 +230,24 @@ router.post('/', [
       });
     }
 
+    // For now, create one order per vendor (or use first vendor if multiple)
+    // In future, we can create separate orders per vendor
+    const vendorId = Array.from(vendorIds)[0];
+    
+    // Use provided totals or calculate
+    const finalTotalAmount = totalAmount || orderItems.reduce((sum, item) => sum + Number(item.total), 0);
+    const finalShippingCost = shippingCost || 0;
+
     // Create order
     const order = await prisma.order.create({
       data: {
         orderNumber,
         customerId: req.user.id,
-        vendorId: items[0].vendorId, // Assuming all items are from same vendor
-        totalAmount,
+        vendorId,
+        totalAmount: finalTotalAmount + finalShippingCost,
+        shippingCost: finalShippingCost,
         shippingAddress,
-        billingAddress,
+        billingAddress: billingAddress || shippingAddress,
         notes,
         paymentMethod,
         status: 'PENDING',
@@ -241,15 +267,62 @@ router.post('/', [
     // Create order items
     await prisma.orderItem.createMany({
       data: orderItems.map(item => ({
-        ...item,
-        orderId: order.id
+        orderId: order.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.total
       }))
+    });
+
+    // Update product stock
+    for (const item of orderItems) {
+      await prisma.product.update({
+        where: { id: item.productId },
+        data: {
+          stock: {
+            decrement: item.quantity
+          }
+        }
+      });
+    }
+
+    // Fetch complete order with items
+    const completeOrder = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: {
+        orderItems: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: true,
+                sku: true
+              }
+            }
+          }
+        },
+        customer: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        vendor: {
+          select: {
+            id: true,
+            businessName: true
+          }
+        }
+      }
     });
 
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      data: order
+      data: completeOrder
     });
   } catch (error) {
     console.error('Create order error:', error);

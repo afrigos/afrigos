@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +32,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { API_BASE_URL } from '@/lib/api-config';
+import { API_BASE_URL, BACKEND_URL } from '@/lib/api-config';
 
 // Types
 interface Product {
@@ -77,13 +77,38 @@ interface ProductsResponse {
   };
 }
 
+// Category interface
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 // API functions
+const fetchCategories = async (): Promise<Category[]> => {
+  const token = localStorage.getItem('afrigos-token');
+  
+  const response = await fetch(`${API_BASE_URL}/products/categories`, {
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  if (!response.ok) {
+    throw new Error('Failed to fetch categories');
+  }
+  
+  const data = await response.json();
+  return data.data || [];
+};
+
 const fetchProducts = async (params: {
   page?: number;
   limit?: number;
   status?: string;
   search?: string;
   vendorId?: string;
+  categoryId?: string;
 }): Promise<ProductsResponse> => {
   const token = localStorage.getItem('afrigos-token');
   const queryParams = new URLSearchParams();
@@ -93,6 +118,7 @@ const fetchProducts = async (params: {
   if (params.status) queryParams.append('status', params.status);
   if (params.search) queryParams.append('search', params.search);
   if (params.vendorId) queryParams.append('vendorId', params.vendorId);
+  if (params.categoryId) queryParams.append('categoryId', params.categoryId);
 
   const response = await fetch(`${API_BASE_URL}/admin/products?${queryParams}`, {
     headers: {
@@ -137,7 +163,7 @@ const complianceStatuses = {
 
 export function ProductApprovalQueue() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("pending");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [reviewNote, setReviewNote] = useState("");
@@ -153,14 +179,21 @@ export function ProductApprovalQueue() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Fetch categories
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ['categories'],
+    queryFn: fetchCategories
+  });
+
   // Fetch products from API
   const { data: productsData, isLoading, error } = useQuery({
-    queryKey: ['admin-products', { page: currentPage, limit: itemsPerPage, status: statusFilter, search: searchTerm }],
+    queryKey: ['admin-products', { page: currentPage, limit: itemsPerPage, status: statusFilter, search: searchTerm, category: categoryFilter }],
     queryFn: () => fetchProducts({
       page: currentPage,
       limit: itemsPerPage,
-      status: statusFilter === 'all' ? undefined : statusFilter,
+      status: statusFilter === 'all' ? undefined : statusFilter === 'review' ? 'PENDING' : statusFilter.toUpperCase(),
       search: searchTerm || undefined,
+      categoryId: categoryFilter === 'all' ? undefined : categoryFilter,
     }),
   });
 
@@ -305,6 +338,14 @@ export function ProductApprovalQueue() {
   const products = productsData?.data?.products || [];
   const pagination = productsData?.data?.pagination;
 
+  // Debug logging
+  useEffect(() => {
+    if (productsData) {
+      console.log('Products data:', productsData);
+      console.log('Products array:', products);
+      console.log('Products count:', products.length);
+    }
+  }, [productsData, products]);
 
   // Calculate statistics from API data
   const calculateStats = () => {
@@ -450,7 +491,17 @@ export function ProductApprovalQueue() {
         </Card>
       </div>
 
-      <Tabs defaultValue="all" className="space-y-6">
+      <Tabs 
+        defaultValue="pending" 
+        value={statusFilter === "all" ? "all" : statusFilter === "pending" ? "pending" : statusFilter === "review" ? "review" : statusFilter === "rejected" ? "rejected" : "pending"}
+        onValueChange={(value) => {
+          if (value === "all") setStatusFilter("all");
+          else if (value === "pending") setStatusFilter("pending");
+          else if (value === "review") setStatusFilter("review");
+          else if (value === "rejected") setStatusFilter("rejected");
+        }}
+        className="space-y-6"
+      >
         <TabsList>
           <TabsTrigger value="all">All Products</TabsTrigger>
           <TabsTrigger value="pending">Pending</TabsTrigger>
@@ -491,13 +542,20 @@ export function ProductApprovalQueue() {
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
                     className="px-3 py-2 border border-input rounded-md bg-background"
+                    disabled={categoriesLoading}
                   >
                     <option value="all">All Categories</option>
-                    <option value="Food">Food</option>
-                    <option value="Beauty">Beauty</option>
-                    <option value="Clothing">Clothing</option>
-                    <option value="Herbal">Herbal</option>
-                    <option value="Services">Services</option>
+                    {categoriesLoading ? (
+                      <option value="loading" disabled>Loading categories...</option>
+                    ) : categories.length === 0 ? (
+                      <option value="no-categories" disabled>No categories available</option>
+                    ) : (
+                      categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
               </div>
@@ -525,8 +583,15 @@ export function ProductApprovalQueue() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {products.map((product) => (
-                    <TableRow key={product.id}>
+                  {products.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10">
+                        <p className="text-muted-foreground">No products found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    products.map((product) => (
+                      <TableRow key={product.id}>
                       <TableCell>
                         <div>
                           <div className="font-medium">{product.name}</div>
@@ -591,7 +656,501 @@ export function ProductApprovalQueue() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {pagination && (
+              <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                onPageChange={handlePageChange}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+              />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Pending Tab */}
+        <TabsContent value="pending" className="space-y-6">
+          {/* Search and Filters */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search products by ID, name, or vendor..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="review">Under Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                    disabled={categoriesLoading}
+                  >
+                    <option value="all">All Categories</option>
+                    {categoriesLoading ? (
+                      <option value="loading" disabled>Loading categories...</option>
+                    ) : categories.length === 0 ? (
+                      <option value="no-categories" disabled>No categories available</option>
+                    ) : (
+                      categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Products Table */}
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Product Queue</CardTitle>
+              <CardDescription>Review and manage product submissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Risk</TableHead>
+                    <TableHead>Compliance</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10">
+                        <p className="text-muted-foreground">No products found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    products.map((product) => (
+                      <TableRow key={product.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {product.images?.length || 0} images • {new Date(product.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {product.vendor?.businessName || 
+                         (product.vendor?.user?.firstName && product.vendor?.user?.lastName 
+                           ? `${product.vendor.user.firstName} ${product.vendor.user.lastName}'s Store`
+                           : 'Vendor Store')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{product.category?.name || 'No Category'}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">£{product.price}</TableCell>
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be assessed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be reviewed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedProduct(product)}
+                            title="View Product Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {product.status === "PENDING" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(product.id)}
+                                disabled={updateStatusMutation.isPending}
+                                title="Approve Product"
+                              >
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setRejectModal({ isOpen: true, productId: product.id, productName: product.name })}
+                                disabled={updateStatusMutation.isPending}
+                                title="Reject Product"
+                              >
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {pagination && (
+              <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                onPageChange={handlePageChange}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+              />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Review Tab */}
+        <TabsContent value="review" className="space-y-6">
+          {/* Same content as pending tab */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search products by ID, name, or vendor..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="review">Under Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                    disabled={categoriesLoading}
+                  >
+                    <option value="all">All Categories</option>
+                    {categoriesLoading ? (
+                      <option value="loading" disabled>Loading categories...</option>
+                    ) : categories.length === 0 ? (
+                      <option value="no-categories" disabled>No categories available</option>
+                    ) : (
+                      categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Product Queue</CardTitle>
+              <CardDescription>Review and manage product submissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Risk</TableHead>
+                    <TableHead>Compliance</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10">
+                        <p className="text-muted-foreground">No products found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    products.map((product) => (
+                      <TableRow key={product.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {product.images?.length || 0} images • {new Date(product.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {product.vendor?.businessName || 
+                         (product.vendor?.user?.firstName && product.vendor?.user?.lastName 
+                           ? `${product.vendor.user.firstName} ${product.vendor.user.lastName}'s Store`
+                           : 'Vendor Store')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{product.category?.name || 'No Category'}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">£{product.price}</TableCell>
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be assessed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be reviewed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedProduct(product)}
+                            title="View Product Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {product.status === "PENDING" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(product.id)}
+                                disabled={updateStatusMutation.isPending}
+                                title="Approve Product"
+                              >
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setRejectModal({ isOpen: true, productId: product.id, productName: product.name })}
+                                disabled={updateStatusMutation.isPending}
+                                title="Reject Product"
+                              >
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+              {pagination && (
+              <Pagination
+                  currentPage={pagination.page}
+                  totalPages={pagination.totalPages}
+                onPageChange={handlePageChange}
+                  totalItems={pagination.total}
+                  itemsPerPage={pagination.limit}
+              />
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Rejected Tab */}
+        <TabsContent value="rejected" className="space-y-6">
+          {/* Same content as pending tab */}
+          <Card className="border-0 shadow-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search products by ID, name, or vendor..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">Pending</option>
+                    <option value="review">Under Review</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                  <select
+                    value={categoryFilter}
+                    onChange={(e) => setCategoryFilter(e.target.value)}
+                    className="px-3 py-2 border border-input rounded-md bg-background"
+                    disabled={categoriesLoading}
+                  >
+                    <option value="all">All Categories</option>
+                    {categoriesLoading ? (
+                      <option value="loading" disabled>Loading categories...</option>
+                    ) : categories.length === 0 ? (
+                      <option value="no-categories" disabled>No categories available</option>
+                    ) : (
+                      categories.map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-0 shadow-sm">
+            <CardHeader>
+              <CardTitle>Product Queue</CardTitle>
+              <CardDescription>Review and manage product submissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Price</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Risk</TableHead>
+                    <TableHead>Compliance</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {products.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-10">
+                        <p className="text-muted-foreground">No products found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    products.map((product) => (
+                      <TableRow key={product.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{product.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {product.images?.length || 0} images • {new Date(product.createdAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {product.vendor?.businessName || 
+                         (product.vendor?.user?.firstName && product.vendor?.user?.lastName 
+                           ? `${product.vendor.user.firstName} ${product.vendor.user.lastName}'s Store`
+                           : 'Vendor Store')}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{product.category?.name || 'No Category'}</Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">£{product.price}</TableCell>
+                      <TableCell>{getStatusBadge(product.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be assessed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">
+                          To be reviewed
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setSelectedProduct(product)}
+                            title="View Product Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {product.status === "PENDING" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleApprove(product.id)}
+                                disabled={updateStatusMutation.isPending}
+                                title="Approve Product"
+                              >
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setRejectModal({ isOpen: true, productId: product.id, productName: product.name })}
+                                disabled={updateStatusMutation.isPending}
+                                title="Reject Product"
+                              >
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
               {pagination && (
@@ -633,6 +1192,7 @@ export function ProductApprovalQueue() {
                            : 'Vendor Store')}</div>
                     <div><strong>Category:</strong> {selectedProduct.category?.name || 'Uncategorized'}</div>
                     <div><strong>Price:</strong> £{selectedProduct.price}</div>
+                    <div><strong>Stock:</strong> {selectedProduct.stock}</div>
                     <div><strong>Submitted:</strong> {new Date(selectedProduct.createdAt).toLocaleDateString()}</div>
                     <div><strong>Images:</strong> {selectedProduct.images?.length || 0} photos</div>
                   </div>
@@ -643,6 +1203,44 @@ export function ProductApprovalQueue() {
                   </div>
                 </div>
                 
+                {/* Product Images Gallery */}
+                <div>
+                  <h3 className="font-semibold mb-4">Product Images</h3>
+                  {selectedProduct.images && selectedProduct.images.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        {selectedProduct.images.map((image, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={image.startsWith('http') ? image : `${BACKEND_URL}/${image}`}
+                              alt={`${selectedProduct.name} - Image ${index + 1}`}
+                              className="w-full h-48 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+                              }}
+                              onClick={() => {
+                                // Open image in new tab for full view
+                                window.open(image.startsWith('http') ? image : `${BACKEND_URL}/${image}`, '_blank');
+                              }}
+                            />
+                            <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
+                              {index + 1}/{selectedProduct.images.length}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {selectedProduct.images.length > 4 && (
+                        <p className="text-sm text-muted-foreground text-center">
+                          Click on any image to view in full size
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                      <p className="text-sm text-muted-foreground">No images available</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="mt-6">
