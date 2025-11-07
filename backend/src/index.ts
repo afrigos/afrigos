@@ -105,7 +105,15 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+
+// Stripe webhook needs raw body, so we handle it at route level
+// Apply JSON parsing to all routes except webhook
+app.use((req, res, next) => {
+  if (req.path === '/api/v1/payments/webhook') {
+    return next();
+  }
+  express.json({ limit: '10mb' })(req, res, next);
+});
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Health check endpoint
@@ -125,7 +133,7 @@ app.use('/api/v1/users', authenticate, userRoutes);
 app.use('/api/v1/vendors', authenticate, vendorRoutes);
 app.use('/api/v1/products', productRoutes);
 app.use('/api/v1/orders', authenticate, orderRoutes);
-app.use('/api/v1/payments', authenticate, paymentRoutes);
+app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/admin', authenticate, adminRoutes);
 app.use('/api/v1/analytics', authenticate, analyticsRoutes);
 app.use('/api/v1/categories', categoriesRoutes);

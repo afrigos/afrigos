@@ -383,6 +383,140 @@ router.put('/vendors/:id/status', requireAdmin, async (req, res) => {
   }
 });
 
+// @desc    Get all customers
+// @route   GET /api/v1/admin/customers
+// @access  Private (Admin)
+router.get('/customers', requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+
+    const where: any = {
+      role: 'CUSTOMER'
+    };
+    
+    if (status && status !== 'all') {
+      if (status === 'active') {
+        where.isActive = true;
+      } else if (status === 'inactive') {
+        where.isActive = false;
+      }
+    }
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search as string, mode: 'insensitive' } },
+        { lastName: { contains: search as string, mode: 'insensitive' } },
+        { email: { contains: search as string, mode: 'insensitive' } }
+      ];
+    }
+
+    const customers = await prisma.user.findMany({
+      where,
+      include: {
+        orders: {
+          select: {
+            id: true,
+            totalAmount: true,
+            createdAt: true,
+            status: true,
+            paymentStatus: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        },
+        addresses: {
+          select: {
+            city: true,
+            state: true,
+            country: true
+          },
+          take: 1
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit)
+    });
+
+    const total = await prisma.user.count({ where });
+
+    // Calculate customer statistics
+    const transformedCustomers = await Promise.all(customers.map(async (customer: any) => {
+      // Calculate total orders
+      const customerOrders = customer.orders || [];
+      const totalOrders = customerOrders.length;
+
+      // Calculate total spent (from completed orders)
+      const totalSpent = customerOrders
+        .filter((order: any) => order.paymentStatus === 'COMPLETED')
+        .reduce((sum: number, order: any) => sum + Number(order.totalAmount || 0), 0);
+
+      // Get last order date
+      const lastOrder = customerOrders.length > 0
+        ? customerOrders[0].createdAt.toISOString().split('T')[0]
+        : null;
+
+      // Calculate average rating from reviews
+      const ratingResult = await prisma.review.aggregate({
+        where: {
+          customerId: customer.id
+        },
+        _avg: {
+          rating: true
+        }
+      }).catch(() => ({ _avg: { rating: null } }));
+
+      // Get location from address or default
+      const customerAddresses = customer.addresses || [];
+      const location = customerAddresses.length > 0
+        ? `${customerAddresses[0].city || ''}, ${customerAddresses[0].state || ''}, ${customerAddresses[0].country || ''}`.trim().replace(/^,|,$/g, '') || 'N/A'
+        : 'N/A';
+
+      // Count support tickets (using notifications as proxy, or 0 if not implemented)
+      const supportTickets = 0; // This would need a separate SupportTicket model
+
+      const rating = ratingResult._avg?.rating 
+        ? Math.round(ratingResult._avg.rating * 10) / 10 
+        : 0;
+
+      return {
+        id: customer.id,
+        name: `${customer.firstName} ${customer.lastName}`,
+        email: customer.email,
+        phone: customer.phone || 'N/A',
+        location: location,
+        joinDate: customer.createdAt.toISOString().split('T')[0],
+        totalOrders: totalOrders,
+        totalSpent: `£${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        lastOrder: lastOrder || 'N/A',
+        status: customer.isActive ? 'active' : 'inactive',
+        rating: rating,
+        supportTickets: supportTickets,
+        isActive: customer.isActive,
+        isVerified: customer.isVerified
+      };
+    }));
+
+    res.json({
+      success: true,
+      data: transformedCustomers,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch customers'
+    });
+  }
+});
+
 // @desc    Get platform analytics
 // @route   GET /api/v1/admin/analytics
 // @access  Private (Admin)

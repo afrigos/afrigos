@@ -66,17 +66,17 @@ export function CustomerHeader() {
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-4">
-              <span>Free shipping on orders over £50</span>
+              <span>Fast & reliable shipping available</span>
             </div>
             <div className="hidden md:flex items-center gap-4">
               {isAuthenticated ? (
                 <span>Welcome, {user?.name || user?.email}</span>
               ) : (
                 <>
-                  <Link to="/auth/signup" className="hover:underline">
+                  <Link to="/auth/customer-signup" className="hover:underline">
                     Sign Up
                   </Link>
-                  <Link to="/auth/login" className="hover:underline">
+                  <Link to="/auth/customer-login" className="hover:underline">
                     Sign In
                   </Link>
                 </>
@@ -91,9 +91,11 @@ export function CustomerHeader() {
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2 flex-shrink-0">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">AG</span>
-            </div>
+            <img 
+              src="/afrigos.jpg" 
+              alt="AfriGos Logo" 
+              className="w-10 h-10 rounded-lg object-cover"
+            />
             <span className="font-bold text-xl hidden sm:inline-block">AfriGos</span>
           </Link>
 
@@ -144,7 +146,7 @@ export function CustomerHeader() {
                     My Account
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/orders')}>
-                    <Store className="mr-2 h-4 w-4" />
+                    <ShoppingCart className="mr-2 h-4 w-4" />
                     My Orders
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -157,7 +159,7 @@ export function CustomerHeader() {
             ) : (
               <Button
                 variant="ghost"
-                onClick={() => navigate('/auth/login')}
+                onClick={() => navigate('/auth/customer-login')}
                 className="hidden sm:flex"
               >
                 Sign In
@@ -203,10 +205,10 @@ export function CustomerHeader() {
 
                   {!isAuthenticated && (
                     <div className="flex flex-col gap-2 pt-4 border-t">
-                      <Button onClick={() => { navigate('/auth/login'); setMobileMenuOpen(false); }}>
+                      <Button onClick={() => { navigate('/auth/customer-login'); setMobileMenuOpen(false); }}>
                         Sign In
                       </Button>
-                      <Button variant="outline" onClick={() => { navigate('/auth/signup'); setMobileMenuOpen(false); }}>
+                      <Button variant="outline" onClick={() => { navigate('/auth/customer-signup'); setMobileMenuOpen(false); }}>
                         Sign Up
                       </Button>
                     </div>
@@ -245,4 +247,6 @@ export function CustomerHeader() {
     </header>
   );
 }
+
+
 

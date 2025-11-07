@@ -5,7 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'admin' | 'vendor';
+  role: 'admin' | 'vendor' | 'customer';
   avatar?: string;
   vendorId?: string; // For vendor users
   vendorName?: string; // For vendor users
@@ -18,6 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isVendor: boolean;
+  isCustomer: boolean;
   login: (email: string, password: string, userType: 'admin' | 'vendor') => Promise<boolean>;
   logout: () => void;
   loading: boolean;
@@ -80,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: result.data.id,
             email: result.data.email,
             name: `${result.data.firstName || ''} ${result.data.lastName || ''}`.trim() || result.data.email,
-            role: result.data.role.toLowerCase() as 'admin' | 'vendor',
+            role: result.data.role.toLowerCase() as 'admin' | 'vendor' | 'customer',
             vendorId: result.data.vendorId,
             vendorName: result.data.vendorName,
             isActive: result.data.isActive,
@@ -91,6 +92,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('afrigos-user', JSON.stringify(updatedUser));
         } else {
           // Fallback to existing user data if response format is different
+          // Try to parse role from stored user
+          if (parsedUser && parsedUser.role) {
+            parsedUser.role = parsedUser.role.toLowerCase() as 'admin' | 'vendor' | 'customer';
+          }
           setUser(parsedUser);
         }
       } catch (error) {
@@ -195,6 +200,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin',
     isVendor: user?.role === 'vendor',
+    isCustomer: user?.role === 'customer',
     login,
     logout,
     loading,

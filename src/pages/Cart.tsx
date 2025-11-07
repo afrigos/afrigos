@@ -12,7 +12,7 @@ export default function Cart() {
   const { toast } = useToast();
 
   const subtotal = getCartTotal();
-  const shipping = subtotal > 50 ? 0 : 5.99; // Free shipping over £50
+  const shipping = 5.99; // Standard shipping fee
   const total = subtotal + shipping;
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
@@ -182,11 +182,6 @@ export default function Cart() {
                     )}
                   </span>
                 </div>
-                {subtotal < 50 && (
-                  <p className="text-xs text-muted-foreground">
-                    Add £{(50 - subtotal).toFixed(2)} more for free shipping
-                  </p>
-                )}
                 <div className="border-t pt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total</span>

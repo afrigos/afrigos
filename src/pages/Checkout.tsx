@@ -9,8 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, ArrowLeft, Lock, Loader2, CheckCircle, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { BACKEND_URL } from "@/lib/api-config";
+import { BACKEND_URL, API_BASE_URL } from "@/lib/api-config";
 import { apiFetch } from "@/lib/api-client";
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import { StripePaymentForm } from "@/components/payment/StripePaymentForm";
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
 type CheckoutStep = 'address' | 'review' | 'payment';
 
@@ -21,6 +27,9 @@ export default function Checkout() {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState<CheckoutStep>('address');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
 
   // Shipping address form
   const [address, setAddress] = useState({
@@ -37,9 +46,9 @@ export default function Checkout() {
   const [paymentMethod, setPaymentMethod] = useState('card');
 
   useEffect(() => {
-    // Redirect to login if not authenticated
+    // Redirect to customer login if not authenticated
     if (!isAuthenticated) {
-      navigate('/auth/login?redirect=/checkout');
+      navigate('/auth/customer-login?redirect=/checkout');
       return;
     }
 
@@ -67,10 +76,18 @@ export default function Checkout() {
     setCurrentStep('review');
   };
 
-  const handlePlaceOrder = async () => {
+  // Create order when moving to payment step
+  useEffect(() => {
+    if (currentStep === 'payment' && !orderId && paymentMethod === 'card') {
+      createOrderAndPaymentIntent();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, orderId, paymentMethod]);
+
+  const createOrderAndPaymentIntent = async () => {
     setIsSubmitting(true);
     try {
-      // Create order
+      // Create order first
       const orderData = {
         items: items.map(item => ({
           productId: item.id,
@@ -91,24 +108,107 @@ export default function Checkout() {
         shippingCost: shipping,
       };
 
-      const response = await apiFetch<{ success: boolean; data: { id: string; orderNumber: string } }>('/orders', {
+      const orderResponse = await apiFetch<{ success: boolean; data: { id: string; orderNumber: string } }>('/orders', {
         method: 'POST',
         body: JSON.stringify(orderData),
       });
 
-      if (response.success) {
-        clearCart();
-        navigate(`/order/${response.data.id}/confirmation`);
+      if (!orderResponse.success) {
+        throw new Error('Failed to create order');
+      }
+
+      const newOrderId = orderResponse.data.id;
+      setOrderId(newOrderId);
+
+      // Create payment intent for Stripe
+      if (paymentMethod === 'card') {
+        const intentResponse = await apiFetch<{ 
+          success: boolean; 
+          data: { clientSecret: string; paymentIntentId: string } 
+        }>('/payments/create-intent', {
+          method: 'POST',
+          body: JSON.stringify({ orderId: newOrderId }),
+        });
+
+        if (intentResponse.success) {
+          setClientSecret(intentResponse.data.clientSecret);
+          setPaymentIntentId(intentResponse.data.paymentIntentId);
+        } else {
+          throw new Error('Failed to create payment intent');
+        }
       }
     } catch (error: any) {
       toast({
-        title: "Order Failed",
-        description: error.message || "Failed to place order. Please try again.",
+        title: "Error",
+        description: error.message || "Failed to initialize payment. Please try again.",
         variant: "destructive",
       });
+      setCurrentStep('review');
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePlaceOrder = async () => {
+    if (paymentMethod === 'bank') {
+      // For bank transfer, just create the order
+      setIsSubmitting(true);
+      try {
+        const orderData = {
+          items: items.map(item => ({
+            productId: item.id,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+          shippingAddress: {
+            fullName: address.fullName,
+            phone: address.phone,
+            street: address.street,
+            city: address.city,
+            state: address.state,
+            postalCode: address.postalCode,
+            country: address.country,
+          },
+          paymentMethod,
+          totalAmount: total,
+          shippingCost: shipping,
+        };
+
+        const response = await apiFetch<{ success: boolean; data: { id: string; orderNumber: string } }>('/orders', {
+          method: 'POST',
+          body: JSON.stringify(orderData),
+        });
+
+        if (response.success) {
+          clearCart();
+          navigate(`/order/${response.data.id}/confirmation`);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Order Failed",
+          description: error.message || "Failed to place order. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // For card payment, move to payment step
+      setCurrentStep('payment');
+    }
+  };
+
+  const handlePaymentSuccess = (orderId: string) => {
+    clearCart();
+    navigate(`/order/${orderId}/confirmation`);
+  };
+
+  const handlePaymentError = (error: string) => {
+    toast({
+      title: "Payment Failed",
+      description: error,
+      variant: "destructive",
+    });
   };
 
   if (!isAuthenticated || items.length === 0) {
@@ -293,6 +393,41 @@ export default function Checkout() {
                   </CardContent>
                 </Card>
 
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Payment Method</CardTitle>
+                    <CardDescription>Select your preferred payment method</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <label className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="card"
+                          checked={paymentMethod === 'card'}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          className="w-4 h-4"
+                        />
+                        <CreditCard className="h-5 w-5" />
+                        <span className="font-medium">Credit/Debit Card (Stripe)</span>
+                      </label>
+                      <label className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          value="bank"
+                          checked={paymentMethod === 'bank'}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          className="w-4 h-4"
+                        />
+                        <Lock className="h-5 w-5" />
+                        <span className="font-medium">Bank Transfer</span>
+                      </label>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 <div className="flex gap-4">
                   <Button
                     variant="outline"
@@ -303,11 +438,22 @@ export default function Checkout() {
                     Back
                   </Button>
                   <Button
-                    onClick={() => setCurrentStep('payment')}
+                    onClick={handlePlaceOrder}
+                    disabled={isSubmitting}
                     className="flex-1"
+                    size="lg"
                   >
-                    Continue to Payment
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        {paymentMethod === 'card' ? 'Continue to Payment' : 'Place Order'}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
                   </Button>
                 </div>
               </>
@@ -316,69 +462,58 @@ export default function Checkout() {
             {currentStep === 'payment' && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Payment Method</CardTitle>
-                  <CardDescription>Select your preferred payment method</CardDescription>
+                  <CardTitle>Payment</CardTitle>
+                  <CardDescription>
+                    {paymentMethod === 'card' 
+                      ? 'Complete your payment securely with Stripe'
+                      : 'Payment instructions will be sent via email'}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <label className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="card"
-                        checked={paymentMethod === 'card'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-4 h-4"
+                  {paymentMethod === 'card' && clientSecret && orderId ? (
+                    <Elements 
+                      stripe={stripePromise} 
+                      options={{ 
+                        clientSecret,
+                        appearance: {
+                          theme: 'stripe',
+                        },
+                      }}
+                    >
+                      <StripePaymentForm
+                        clientSecret={clientSecret}
+                        orderId={orderId}
+                        onSuccess={handlePaymentSuccess}
+                        onError={handlePaymentError}
                       />
-                      <CreditCard className="h-5 w-5" />
-                      <span className="font-medium">Credit/Debit Card</span>
-                    </label>
-                    <label className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
-                      <input
-                        type="radio"
-                        name="paymentMethod"
-                        value="bank"
-                        checked={paymentMethod === 'bank'}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-4 h-4"
-                      />
-                      <Lock className="h-5 w-5" />
-                      <span className="font-medium">Bank Transfer</span>
-                    </label>
-                  </div>
-
-                  <div className="p-4 bg-muted/50 rounded-lg">
-                    <p className="text-sm text-muted-foreground">
-                      Payment integration will be implemented soon. For now, your order will be placed and payment instructions will be sent via email.
-                    </p>
-                  </div>
+                    </Elements>
+                  ) : paymentMethod === 'card' ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-muted-foreground">Setting up payment...</span>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground">
+                        Payment instructions will be sent to your email after order confirmation.
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex gap-4">
                     <Button
                       variant="outline"
-                      onClick={() => setCurrentStep('review')}
+                      onClick={() => {
+                        setOrderId(null);
+                        setClientSecret(null);
+                        setPaymentIntentId(null);
+                        setCurrentStep('review');
+                      }}
                       className="flex-1"
+                      disabled={isSubmitting}
                     >
                       <ArrowLeft className="mr-2 h-4 w-4" />
                       Back
-                    </Button>
-                    <Button
-                      onClick={handlePlaceOrder}
-                      disabled={isSubmitting}
-                      className="flex-1"
-                      size="lg"
-                    >
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Placing Order...
-                        </>
-                      ) : (
-                        <>
-                          Place Order
-                          <Lock className="ml-2 h-4 w-4" />
-                        </>
-                      )}
                     </Button>
                   </div>
                 </CardContent>
@@ -435,5 +570,3 @@ export default function Checkout() {
     </div>
   );
 }
-
-

@@ -9,6 +9,8 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/auth/Login";
 import VendorLogin from "./pages/auth/VendorLogin";
 import VendorSignup from "./pages/auth/VendorSignup";
+import CustomerLogin from "./pages/auth/CustomerLogin";
+import CustomerSignup from "./pages/auth/CustomerSignup";
 import PendingApproval from "./pages/auth/PendingApproval";
 import OrderTracking from "./pages/OrderTracking";
 import Signup from "./pages/auth/Signup";
@@ -22,6 +24,14 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
+import CustomerAccount from "./pages/CustomerAccount";
+import About from "./pages/About";
+import Contact from "./pages/Contact";
+import FAQ from "./pages/FAQ";
+import Shipping from "./pages/Shipping";
+import Returns from "./pages/Returns";
+import Terms from "./pages/Terms";
+import Privacy from "./pages/Privacy";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -71,7 +81,7 @@ const CustomerProtectedRoute = ({ children }: { children: React.ReactNode }) => 
   
   if (!isAuthenticated) {
     const currentPath = window.location.pathname;
-    return <Navigate to={`/auth/login?redirect=${encodeURIComponent(currentPath)}`} replace />;
+    return <Navigate to={`/auth/customer-login?redirect=${encodeURIComponent(currentPath)}`} replace />;
   }
   
   return <>{children}</>;
@@ -92,6 +102,8 @@ const App = () => (
               <Route path="/auth/login" element={<Login />} />
               <Route path="/auth/vendor-login" element={<VendorLogin />} />
               <Route path="/auth/vendor-signup" element={<VendorSignup />} />
+              <Route path="/auth/customer-login" element={<CustomerLogin />} />
+              <Route path="/auth/customer-signup" element={<CustomerSignup />} />
               <Route path="/auth/pending-approval" element={<PendingApproval />} />
               <Route path="/auth/signup" element={<Signup />} />
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />
@@ -119,8 +131,33 @@ const App = () => (
                 } 
               />
               
+              {/* Customer Account Routes */}
+              <Route 
+                path="/account" 
+                element={
+                  <CustomerProtectedRoute>
+                    <CustomerLayout><CustomerAccount /></CustomerLayout>
+                  </CustomerProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/orders" 
+                element={
+                  <CustomerProtectedRoute>
+                    <CustomerLayout><CustomerAccount /></CustomerLayout>
+                  </CustomerProtectedRoute>
+                } 
+              />
+              
               {/* Public Routes */}
               <Route path="/track" element={<CustomerLayout><OrderTracking /></CustomerLayout>} />
+              <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
+              <Route path="/contact" element={<CustomerLayout><Contact /></CustomerLayout>} />
+              <Route path="/faq" element={<CustomerLayout><FAQ /></CustomerLayout>} />
+              <Route path="/shipping" element={<CustomerLayout><Shipping /></CustomerLayout>} />
+              <Route path="/returns" element={<CustomerLayout><Returns /></CustomerLayout>} />
+              <Route path="/terms" element={<CustomerLayout><Terms /></CustomerLayout>} />
+              <Route path="/privacy" element={<CustomerLayout><Privacy /></CustomerLayout>} />
               
               {/* Protected Admin Routes */}
               <Route path="/admin/*" element={<AdminProtectedRoute><Index /></AdminProtectedRoute>} />

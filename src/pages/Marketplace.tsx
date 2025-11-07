@@ -44,9 +44,9 @@ export default function Marketplace() {
     },
     {
       id: 4,
-      title: "Free Shipping",
-      subtitle: "On Orders Over £50",
-      description: "Get free delivery on your next purchase",
+      title: "Authentic Products",
+      subtitle: "Quality Guaranteed",
+      description: "Shop verified authentic African products with confidence",
       imageUrl: "bg-gradient-to-r from-purple-600 to-purple-700",
       link: "/products",
       buttonText: "Shop Now"
@@ -112,8 +112,6 @@ export default function Marketplace() {
           <div className="flex items-center justify-center gap-2 text-sm">
             <Flame className="h-4 w-4 text-yellow-300" />
             <span className="font-semibold">FLASH SALE: Up to 50% OFF on Selected Items</span>
-            <span className="hidden sm:inline">|</span>
-            <span className="hidden sm:inline">Free Shipping on Orders Over £50</span>
           </div>
         </div>
       </section>

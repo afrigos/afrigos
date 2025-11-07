@@ -5,20 +5,105 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Eye, EyeOff, Mail, Lock, User } from "lucide-react";
-import { useRegister } from "@/hooks/useAuth";
+import { Eye, EyeOff, Mail, Lock, User, Phone } from "lucide-react";
+import { useMutation } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL } from '@/lib/api-config';
+import { useAuth } from '@/contexts/AuthContext';
 
-export default function Signup() {
+interface SignupData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: any;
+    token?: string;
+  };
+}
+
+const customerSignupApi = async (data: SignupData): Promise<AuthResponse> => {
+  const sanitizedData = {
+    ...data,
+    firstName: data.firstName?.trim() || 'Customer',
+    lastName: data.lastName?.trim() || 'User',
+    role: 'CUSTOMER'
+  };
+  
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(sanitizedData),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Registration failed');
+  }
+
+  return response.json();
+};
+
+export default function CustomerSignup() {
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
+    phone: "",
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  
   const navigate = useNavigate();
-  const registerMutation = useRegister();
+  const { toast } = useToast();
+  const { setUser } = useAuth();
+
+  const signupMutation = useMutation({
+    mutationFn: customerSignupApi,
+    onSuccess: (data) => {
+      if (data.data.token) {
+        localStorage.setItem('afrigos-token', data.data.token);
+        localStorage.setItem('afrigos-user', JSON.stringify(data.data.user));
+        
+        // Transform user data to match AuthContext interface
+        const transformedUser = {
+          id: data.data.user.id,
+          email: data.data.user.email,
+          name: `${data.data.user.firstName} ${data.data.user.lastName}`,
+          role: 'customer' as const,
+          avatar: null,
+          isActive: data.data.user.isActive,
+          isVerified: data.data.user.isVerified
+        };
+        
+        // Update AuthContext with the logged-in user
+        setUser(transformedUser);
+      }
+      
+      toast({
+        title: "Welcome to AfriGos!",
+        description: "Your account has been created successfully.",
+      });
+      
+      navigate("/account");
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Failed to register. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -26,27 +111,22 @@ export default function Signup() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    
     if (!agreeToTerms) {
+      toast({
+        title: "Terms Required",
+        description: "Please agree to the terms and conditions to continue.",
+        variant: "destructive",
+      });
       return;
     }
 
-    registerMutation.mutate({
-      firstName: formData.firstName,
-      lastName: formData.lastName,
-      email: formData.email,
-      password: formData.password,
-      role: 'ADMIN'
-    }, {
-      onSuccess: () => {
-      navigate("/auth/login");
-      }
-    });
+    signupMutation.mutate(formData);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background p-4">
-      <div className="w-full max-w-lg">
+      <div className="w-full max-w-md">
         {/* Logo Section */}
         <div className="text-center mb-8">
           <img 
@@ -55,14 +135,14 @@ export default function Signup() {
             className="w-16 h-16 rounded-xl mx-auto mb-4 object-cover"
           />
           <h1 className="text-2xl font-bold text-foreground">AfriGos</h1>
-          <p className="text-muted-foreground">Admin Account Request</p>
+          <p className="text-muted-foreground">Create Account</p>
         </div>
 
         <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold">Request Admin Access</CardTitle>
+            <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
             <CardDescription>
-              Submit your details for admin account approval
+              Sign up to start shopping on AfriGos
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -74,7 +154,8 @@ export default function Signup() {
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       id="firstName"
-                      placeholder="John"
+                      type="text"
+                      placeholder="First name"
                       value={formData.firstName}
                       onChange={(e) => handleInputChange("firstName", e.target.value)}
                       className="pl-10"
@@ -84,13 +165,18 @@ export default function Signup() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    value={formData.lastName}
-                    onChange={(e) => handleInputChange("lastName", e.target.value)}
-                    required
-                  />
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="lastName"
+                      type="text"
+                      placeholder="Last name"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange("lastName", e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -101,7 +187,7 @@ export default function Signup() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="john.doe@company.com"
+                    placeholder="your@email.com"
                     value={formData.email}
                     onChange={(e) => handleInputChange("email", e.target.value)}
                     className="pl-10"
@@ -110,6 +196,20 @@ export default function Signup() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number (Optional)</Label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="phone"
+                    type="tel"
+                    placeholder="+1 (555) 123-4567"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
@@ -118,11 +218,12 @@ export default function Signup() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
+                    placeholder="Create a password (min. 6 characters)"
                     value={formData.password}
                     onChange={(e) => handleInputChange("password", e.target.value)}
                     className="pl-10 pr-10"
                     required
+                    minLength={6}
                   />
                   <button
                     type="button"
@@ -134,7 +235,6 @@ export default function Signup() {
                 </div>
               </div>
 
-
               <div className="flex items-center space-x-2">
                 <Checkbox 
                   id="terms" 
@@ -144,7 +244,7 @@ export default function Signup() {
                 <Label htmlFor="terms" className="text-sm">
                   I agree to the{" "}
                   <Link to="/terms" className="text-primary hover:underline">
-                    Terms & Conditions
+                    Terms of Service
                   </Link>{" "}
                   and{" "}
                   <Link to="/privacy" className="text-primary hover:underline">
@@ -155,24 +255,27 @@ export default function Signup() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-dashboard-accent hover:opacity-90"
-                disabled={registerMutation.isPending || !agreeToTerms}
+                className="w-full bg-gradient-to-r from-primary to-orange-500 hover:opacity-90"
+                disabled={signupMutation.isPending || !agreeToTerms}
               >
-                {registerMutation.isPending ? "Submitting Request..." : "Submit Request"}
+                {signupMutation.isPending ? "Creating Account..." : "Create Account"}
               </Button>
             </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/auth/customer-login" className="text-primary hover:underline font-medium">
+                  Sign In
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
-
-        <div className="mt-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link to="/auth/login" className="text-primary hover:underline">
-              Sign In
-            </Link>
-          </p>
-        </div>
       </div>
     </div>
   );
 }
+
+
+

@@ -29,11 +29,15 @@ import {
   TrendingUp,
   AlertTriangle,
   XCircle,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { API_BASE_URL } from "@/lib/api-config";
+import { apiFetch } from "@/lib/api-client";
 
 // Predefined countries for customers
 const countries = [
@@ -68,276 +72,92 @@ const customerPreferences = [
   "Jewelry & Accessories"
 ];
 
-const customerData = [
-  {
-    id: "C001",
-    name: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    phone: "+44 20 7123 4567",
-    location: "London, UK",
-    joinDate: "2023-06-15",
-    totalOrders: 12,
-    totalSpent: "£456.78",
-    lastOrder: "2024-01-20",
-    status: "active",
-    rating: 4.8,
-    supportTickets: 2,
-    preferences: ["Food", "Beauty", "Herbal"]
-  },
-  {
-    id: "C002",
-    name: "Michael Chen",
-    email: "m.chen@email.com",
-    phone: "+44 161 456 7890",
-    location: "Manchester, UK",
-    joinDate: "2023-08-22",
-    totalOrders: 8,
-    totalSpent: "£234.50",
-    lastOrder: "2024-01-18",
-    status: "active",
-    rating: 4.9,
-    supportTickets: 0,
-    preferences: ["Clothing", "Beauty"]
-  },
-  {
-    id: "C003",
-    name: "Emma Wilson",
-    email: "emma.w@email.com",
-    phone: "+44 121 789 0123",
-    location: "Birmingham, UK",
-    joinDate: "2023-09-10",
-    totalOrders: 5,
-    totalSpent: "£189.99",
-    lastOrder: "2024-01-15",
-    status: "inactive",
-    rating: 4.6,
-    supportTickets: 1,
-    preferences: ["Food", "Services"]
-  },
-  {
-    id: "C004",
-    name: "David Brown",
-    email: "d.brown@email.com",
-    phone: "+44 113 234 5678",
-    location: "Leeds, UK",
-    joinDate: "2023-11-05",
-    totalOrders: 15,
-    totalSpent: "£678.90",
-    lastOrder: "2024-01-22",
-    status: "active",
-    rating: 4.7,
-    supportTickets: 3,
-    preferences: ["Food", "Herbal", "Clothing"]
-  },
-  {
-    id: "C005",
-    name: "Lisa Thompson",
-    email: "lisa.t@email.com",
-    phone: "+44 151 345 6789",
-    location: "Liverpool, UK",
-    joinDate: "2023-12-18",
-    totalOrders: 3,
-    totalSpent: "£89.99",
-    lastOrder: "2024-01-10",
-    status: "active",
-    rating: 4.5,
-    supportTickets: 0,
-    preferences: ["Beauty"]
-  },
-  {
-    id: "C006",
-    name: "James Anderson",
-    email: "j.anderson@email.com",
-    phone: "+44 191 234 5678",
-    location: "Newcastle, UK",
-    joinDate: "2023-07-03",
-    totalOrders: 22,
-    totalSpent: "£1,234.56",
-    lastOrder: "2024-01-25",
-    status: "active",
-    rating: 4.9,
-    supportTickets: 1,
-    preferences: ["Food", "Clothing", "Herbal"]
-  },
-  {
-    id: "C007",
-    name: "Maria Garcia",
-    email: "m.garcia@email.com",
-    phone: "+44 117 345 6789",
-    location: "Bristol, UK",
-    joinDate: "2023-10-12",
-    totalOrders: 7,
-    totalSpent: "£345.67",
-    lastOrder: "2024-01-19",
-    status: "active",
-    rating: 4.7,
-    supportTickets: 0,
-    preferences: ["Beauty", "Food"]
-  },
-  {
-    id: "C008",
-    name: "Robert Taylor",
-    email: "r.taylor@email.com",
-    phone: "+44 114 456 7890",
-    location: "Sheffield, UK",
-    joinDate: "2023-11-28",
-    totalOrders: 1,
-    totalSpent: "£45.99",
-    lastOrder: "2024-01-05",
-    status: "inactive",
-    rating: 4.2,
-    supportTickets: 2,
-    preferences: ["Clothing"]
-  },
-  {
-    id: "C009",
-    name: "Amanda White",
-    email: "a.white@email.com",
-    phone: "+44 115 567 8901",
-    location: "Nottingham, UK",
-    joinDate: "2023-09-15",
-    totalOrders: 18,
-    totalSpent: "£789.12",
-    lastOrder: "2024-01-23",
-    status: "active",
-    rating: 4.8,
-    supportTickets: 0,
-    preferences: ["Food", "Beauty", "Herbal"]
-  },
-  {
-    id: "C010",
-    name: "Thomas Lee",
-    email: "t.lee@email.com",
-    phone: "+44 121 678 9012",
-    location: "Birmingham, UK",
-    joinDate: "2023-08-07",
-    totalOrders: 4,
-    totalSpent: "£156.78",
-    lastOrder: "2024-01-12",
-    status: "suspended",
-    rating: 3.8,
-    supportTickets: 5,
-    preferences: ["Food"]
-  },
-  {
-    id: "C011",
-    name: "Jennifer Davis",
-    email: "j.davis@email.com",
-    phone: "+44 161 789 0123",
-    location: "Manchester, UK",
-    joinDate: "2023-12-01",
-    totalOrders: 9,
-    totalSpent: "£432.10",
-    lastOrder: "2024-01-21",
-    status: "active",
-    rating: 4.6,
-    supportTickets: 1,
-    preferences: ["Beauty", "Clothing"]
-  },
-  {
-    id: "C012",
-    name: "Christopher Wilson",
-    email: "c.wilson@email.com",
-    phone: "+44 113 890 1234",
-    location: "Leeds, UK",
-    joinDate: "2023-07-20",
-    totalOrders: 25,
-    totalSpent: "£1,567.89",
-    lastOrder: "2024-01-26",
-    status: "active",
-    rating: 5.0,
-    supportTickets: 0,
-    preferences: ["Food", "Herbal", "Clothing", "Beauty"]
-  },
-  {
-    id: "C013",
-    name: "Nicole Martinez",
-    email: "n.martinez@email.com",
-    phone: "+44 151 901 2345",
-    location: "Liverpool, UK",
-    joinDate: "2023-10-05",
-    totalOrders: 6,
-    totalSpent: "£298.45",
-    lastOrder: "2024-01-16",
-    status: "active",
-    rating: 4.4,
-    supportTickets: 1,
-    preferences: ["Beauty", "Food"]
-  },
-  {
-    id: "C014",
-    name: "Daniel Rodriguez",
-    email: "d.rodriguez@email.com",
-    phone: "+44 191 012 3456",
-    location: "Newcastle, UK",
-    joinDate: "2023-11-14",
-    totalOrders: 2,
-    totalSpent: "£78.90",
-    lastOrder: "2024-01-08",
-    status: "inactive",
-    rating: 4.1,
-    supportTickets: 3,
-    preferences: ["Clothing"]
-  },
-  {
-    id: "C015",
-    name: "Sophie Turner",
-    email: "s.turner@email.com",
-    phone: "+44 117 123 4567",
-    location: "Bristol, UK",
-    joinDate: "2023-09-28",
-    totalOrders: 14,
-    totalSpent: "£654.32",
-    lastOrder: "2024-01-24",
-    status: "active",
-    rating: 4.7,
-    supportTickets: 0,
-    preferences: ["Food", "Beauty", "Herbal"]
-  }
-];
-
-const customerStats = [
-  {
-    title: "Total Customers",
-    value: "8,942",
-    change: "+12.5%",
-    trend: "up",
-    icon: Users
-  },
-  {
-    title: "Active Customers",
-    value: "7,234",
-    change: "+8.2%",
-    trend: "up",
-    icon: TrendingUp
-  },
-  {
-    title: "Average Order Value",
-    value: "£45.67",
-    change: "+6.7%",
-    trend: "up",
-    icon: ShoppingCart
-  },
-  {
-    title: "Support Tickets",
-    value: "156",
-    change: "-3.1%",
-    trend: "down",
-    icon: MessageSquare
-  }
-];
+// Fetch customers from API
+const fetchCustomers = async (params: { page: number; limit: number; status: string; search?: string }) => {
+  const queryParams = new URLSearchParams({
+    page: params.page.toString(),
+    limit: params.limit.toString(),
+    status: params.status,
+    ...(params.search && { search: params.search })
+  });
+  
+  const response = await apiFetch<{
+    success: boolean;
+    data: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }>(`${API_BASE_URL}/admin/customers?${queryParams.toString()}`);
+  
+  return response;
+};
 
 export function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(5);
+  const [itemsPerPage] = useState(10);
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch customers
+  const { data: customersData, isLoading: isLoadingCustomers, error } = useQuery({
+    queryKey: ['customers', currentPage, itemsPerPage, statusFilter, searchTerm],
+    queryFn: () => fetchCustomers({
+      page: currentPage,
+      limit: itemsPerPage,
+      status: statusFilter,
+      search: searchTerm || undefined
+    }),
+  });
+
+  const customers = customersData?.data || [];
+  const pagination = customersData?.pagination || { page: 1, limit: 10, total: 0, pages: 0 };
+
+  // Calculate stats from data
+const customerStats = [
+  {
+    title: "Total Customers",
+      value: pagination.total.toLocaleString(),
+      change: "+0%",
+      trend: "up" as const,
+    icon: Users
+  },
+  {
+    title: "Active Customers",
+      value: customers.filter((c: any) => c.status === 'active').length.toLocaleString(),
+      change: "+0%",
+      trend: "up" as const,
+    icon: TrendingUp
+  },
+  {
+      title: "Total Revenue",
+      value: `£${customers.reduce((sum: number, c: any) => {
+        const spent = parseFloat(c.totalSpent.replace('£', '').replace(/,/g, '')) || 0;
+        return sum + spent;
+      }, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      change: "+0%",
+      trend: "up" as const,
+    icon: ShoppingCart
+  },
+  {
+      title: "Average Rating",
+      value: customers.length > 0
+        ? (customers.reduce((sum: number, c: any) => sum + (c.rating || 0), 0) / customers.length).toFixed(1)
+        : "0.0",
+      change: "+0%",
+      trend: "up" as const,
+      icon: Star
+    }
+  ];
 
   // Add customer form state
   const [addCustomerForm, setAddCustomerForm] = useState({
@@ -382,20 +202,6 @@ export function CustomerManagement() {
     setSelectedCustomer(customer);
   };
 
-  const filteredCustomers = customerData.filter(customer => {
-    const matchesSearch = customer.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || customer.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-
-  // Pagination logic
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentCustomers = filteredCustomers.slice(startIndex, endIndex);
-
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
@@ -429,31 +235,9 @@ export function CustomerManagement() {
     setIsAddingCustomer(true);
     
     try {
-      // Mock API call
+      // TODO: Implement actual API call to create customer
+      // For now, this is a placeholder that just shows a success message
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Generate new customer ID
-      const newCustomerId = `C${String(customerData.length + 1).padStart(3, '0')}`;
-      
-      // Create new customer object
-      const newCustomer = {
-        id: newCustomerId,
-        name: addCustomerForm.name,
-        email: addCustomerForm.email,
-        phone: addCustomerForm.phone,
-        location: addCustomerForm.location,
-        joinDate: new Date().toISOString().split('T')[0],
-        totalOrders: 0,
-        totalSpent: "£0",
-        lastOrder: "",
-        status: "active",
-        rating: 0,
-        supportTickets: 0,
-        preferences: addCustomerForm.preferences
-      };
-      
-      // In a real app, this would be an API call
-      // customerData.push(newCustomer);
       
       toast({
         title: "Customer Added Successfully",
@@ -507,44 +291,43 @@ export function CustomerManagement() {
     }));
   };
 
-  const handleSuspendCustomer = async (customerId: string) => {
-    setIsLoading(customerId);
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({
-        title: "Customer Suspended",
-        description: `Customer ${customerId} has been suspended.`,
+  // Update customer status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ customerId, isActive }: { customerId: string; isActive: boolean }) => {
+      return apiFetch(`${API_BASE_URL}/admin/users/${customerId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive }),
       });
-    } catch (error) {
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast({
-        title: "Suspension Failed",
-        description: "Failed to suspend customer. Please try again.",
+        title: "Status Updated",
+        description: "Customer status has been updated successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update Failed",
+        description: "Failed to update customer status. Please try again.",
         variant: "destructive",
       });
-    } finally {
+    },
+  });
+
+  const handleSuspendCustomer = async (customerId: string) => {
+    setIsLoading(customerId);
+    updateStatusMutation.mutate({ customerId, isActive: false });
       setIsLoading(null);
-    }
   };
 
   const handleActivateCustomer = async (customerId: string) => {
     setIsLoading(customerId);
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({
-        title: "Customer Activated",
-        description: `Customer ${customerId} has been activated.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Activation Failed",
-        description: "Failed to activate customer. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
+    updateStatusMutation.mutate({ customerId, isActive: true });
       setIsLoading(null);
-    }
   };
 
   return (
@@ -619,7 +402,10 @@ export function CustomerManagement() {
                     <Input
                       placeholder="Search customers by name, email, or ID..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setCurrentPage(1); // Reset to first page on search
+                      }}
                       className="pl-10"
                     />
                   </div>
@@ -663,95 +449,110 @@ export function CustomerManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentCustomers.map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">{customer.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{customer.name}</div>
-                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm">{customer.email}</div>
-                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{customer.location}</TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className="font-medium">{customer.totalOrders}</div>
-                          <div className="text-sm text-muted-foreground">orders</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{customer.totalSpent}</TableCell>
-                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                          <span className="text-sm">{customer.rating}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewProfile(customer)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "email")}
-                            disabled={isLoading === customer.id}
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "phone")}
-                            disabled={isLoading === customer.id}
-                          >
-                            <Phone className="h-4 w-4" />
-                          </Button>
-                          {customer.status === "active" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSuspendCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
-                            >
-                              <AlertTriangle className="h-4 w-4 text-warning" />
-                            </Button>
-                          )}
-                          {customer.status === "suspended" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleActivateCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
-                            >
-                              <CheckCircle className="h-4 w-4 text-success" />
-                            </Button>
-                          )}
-                          {customer.status === "inactive" && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleActivateCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
-                            >
-                              <CheckCircle className="h-4 w-4 text-success" />
-                            </Button>
-                          )}
-                        </div>
+                  {isLoadingCustomers ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                        <p className="mt-2 text-sm text-muted-foreground">Loading customers...</p>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : customers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8">
+                        <p className="text-sm text-muted-foreground">No customers found</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    customers.map((customer: any) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="text-sm">{customer.email}</div>
+                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{customer.location}</TableCell>
+                        <TableCell>
+                          <div className="text-center">
+                            <div className="font-medium">{customer.totalOrders}</div>
+                            <div className="text-sm text-muted-foreground">orders</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{customer.totalSpent}</TableCell>
+                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                            <span className="text-sm">{customer.rating}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewProfile(customer)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "email")}
+                              disabled={isLoading === customer.id}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "phone")}
+                              disabled={isLoading === customer.id}
+                            >
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                            {customer.status === "active" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSuspendCustomer(customer.id)}
+                                disabled={isLoading === customer.id}
+                              >
+                                <AlertTriangle className="h-4 w-4 text-warning" />
+                              </Button>
+                            )}
+                            {customer.status === "suspended" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleActivateCustomer(customer.id)}
+                                disabled={isLoading === customer.id}
+                              >
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              </Button>
+                            )}
+                            {customer.status === "inactive" && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleActivateCustomer(customer.id)}
+                                disabled={isLoading === customer.id}
+                              >
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -760,8 +561,10 @@ export function CustomerManagement() {
           {/* Pagination */}
           <div className="flex justify-center mt-6">
             <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
+              currentPage={pagination.page}
+              totalPages={pagination.pages}
+              totalItems={pagination.total}
+              itemsPerPage={itemsPerPage}
               onPageChange={handlePageChange}
             />
           </div>
@@ -790,71 +593,78 @@ export function CustomerManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentCustomers.filter(c => c.status === "active").map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">{customer.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{customer.name}</div>
-                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm">{customer.email}</div>
-                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className="font-medium">{customer.totalOrders}</div>
-                          <div className="text-sm text-muted-foreground">orders</div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{customer.totalSpent}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-1">
-                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                          <span className="text-sm">{customer.rating}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewProfile(customer)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "email")}
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSuspendCustomer(customer.id)}
-                            disabled={isLoading === customer.id}
-                          >
-                            <AlertTriangle className="h-4 w-4 text-warning" />
-                          </Button>
-                        </div>
+                  {isLoadingCustomers ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : customers.filter((c: any) => c.status === "active").length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <p className="text-sm text-muted-foreground">No active customers</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    customers.filter((c: any) => c.status === "active").map((customer: any) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="text-sm">{customer.email}</div>
+                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-center">
+                            <div className="font-medium">{customer.totalOrders}</div>
+                            <div className="text-sm text-muted-foreground">orders</div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{customer.totalSpent}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-1">
+                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                            <span className="text-sm">{customer.rating}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewProfile(customer)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "email")}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSuspendCustomer(customer.id)}
+                              disabled={isLoading === customer.id}
+                            >
+                              <AlertTriangle className="h-4 w-4 text-warning" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                totalItems={filteredCustomers.filter(c => c.status === "active").length}
-                itemsPerPage={itemsPerPage}
-              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -882,68 +692,75 @@ export function CustomerManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentCustomers.filter(c => c.status !== "active").map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">{customer.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{customer.name}</div>
-                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm">{customer.email}</div>
-                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className="font-medium">{customer.supportTickets}</div>
-                          <div className="text-sm text-muted-foreground">tickets</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewProfile(customer)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleActivateCustomer(customer.id)}
-                            disabled={isLoading === customer.id}
-                          >
-                            <CheckCircle className="h-4 w-4 text-success" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "email")}
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  {isLoadingCustomers ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : customers.filter((c: any) => c.status !== "active").length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <p className="text-sm text-muted-foreground">No inactive customers</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    customers.filter((c: any) => c.status !== "active").map((customer: any) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="text-sm">{customer.email}</div>
+                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-center">
+                            <div className="font-medium">{customer.supportTickets}</div>
+                            <div className="text-sm text-muted-foreground">tickets</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleViewProfile(customer)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleActivateCustomer(customer.id)}
+                              disabled={isLoading === customer.id}
+                            >
+                              <CheckCircle className="h-4 w-4 text-success" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "email")}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                totalItems={filteredCustomers.filter(c => c.status !== "active").length}
-                itemsPerPage={itemsPerPage}
-              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -971,79 +788,86 @@ export function CustomerManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentCustomers.filter(c => c.supportTickets > 0).map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="font-medium">{customer.id}</TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{customer.name}</div>
-                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                        </div>
+                  {isLoadingCustomers ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       </TableCell>
-                      <TableCell>
-                        <div>
-                          <div className="text-sm">{customer.email}</div>
-                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                        </div>
+                    </TableRow>
+                  ) : customers.filter((c: any) => c.supportTickets > 0).length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <p className="text-sm text-muted-foreground">No customers with support issues</p>
                       </TableCell>
-                      <TableCell>
-                        <div className="text-center">
-                          <div className={`font-medium ${customer.supportTickets > 3 ? "text-destructive" : "text-warning"}`}>
-                            {customer.supportTickets}
+                    </TableRow>
+                  ) : (
+                    customers.filter((c: any) => c.supportTickets > 0).map((customer: any) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{customer.name}</div>
+                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
                           </div>
-                          <div className="text-sm text-muted-foreground">tickets</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleViewProfile(customer)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "email")}
-                          >
-                            <Mail className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleContactCustomer(customer.id, "phone")}
-                          >
-                            <Phone className="h-4 w-4" />
-                          </Button>
-                          {customer.supportTickets > 3 && (
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="text-sm">{customer.email}</div>
+                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-center">
+                            <div className={`font-medium ${customer.supportTickets > 3 ? "text-destructive" : "text-warning"}`}>
+                              {customer.supportTickets}
+                            </div>
+                            <div className="text-sm text-muted-foreground">tickets</div>
+                          </div>
+                        </TableCell>
+                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                        <TableCell>
+                          <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleSuspendCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
+                              onClick={() => handleViewProfile(customer)}
                             >
-                              <AlertTriangle className="h-4 w-4 text-destructive" />
+                              <Eye className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "email")}
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleContactCustomer(customer.id, "phone")}
+                            >
+                              <Phone className="h-4 w-4" />
+                            </Button>
+                            {customer.supportTickets > 3 && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSuspendCustomer(customer.id)}
+                                disabled={isLoading === customer.id}
+                              >
+                                <AlertTriangle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                totalItems={filteredCustomers.filter(c => c.supportTickets > 0).length}
-                itemsPerPage={itemsPerPage}
-              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1080,9 +904,13 @@ export function CustomerManagement() {
                 <div className="mt-4">
                   <h4 className="font-medium mb-2">Preferences</h4>
                   <div className="flex flex-wrap gap-2">
-                    {selectedCustomer.preferences.map((pref: string, index: number) => (
-                      <Badge key={index} variant="outline">{pref}</Badge>
-                    ))}
+                    {selectedCustomer.preferences && selectedCustomer.preferences.length > 0 ? (
+                      selectedCustomer.preferences.map((pref: string, index: number) => (
+                        <Badge key={index} variant="outline">{pref}</Badge>
+                      ))
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No preferences set</p>
+                    )}
                   </div>
                 </div>
               </div>

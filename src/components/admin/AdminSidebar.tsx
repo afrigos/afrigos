@@ -75,18 +75,22 @@ export function AdminSidebar() {
         <div className="mb-8">
           {!collapsed ? (
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-dashboard-accent rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">AG</span>
-              </div>
+              <img 
+                src="/afrigos.jpg" 
+                alt="AfriGos Logo" 
+                className="w-10 h-10 rounded-lg object-cover"
+              />
               <div>
                 <h2 className="font-bold text-lg text-foreground">AfriGos</h2>
                 <p className="text-xs text-muted-foreground">Admin Dashboard</p>
               </div>
             </div>
           ) : (
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-dashboard-accent rounded-lg flex items-center justify-center mx-auto">
-              <span className="text-white font-bold text-lg">AG</span>
-            </div>
+            <img 
+              src="/afrigos.jpg" 
+              alt="AfriGos Logo" 
+              className="w-10 h-10 rounded-lg object-cover mx-auto"
+            />
           )}
         </div>
 

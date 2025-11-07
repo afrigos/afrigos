@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Package, ArrowRight, Loader2 } from "lucide-react";
+import { CheckCircle, ArrowRight, Loader2, Package } from "lucide-react";
 import { apiFetch } from "@/lib/api-client";
 import { BACKEND_URL } from "@/lib/api-config";
 
@@ -69,7 +69,15 @@ export default function OrderConfirmation() {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Order Details</CardTitle>
-              <CardDescription>Order #{order.orderNumber || order.id}</CardDescription>
+              <CardDescription>
+                Order #{order.orderNumber || order.id}
+              </CardDescription>
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-sm font-medium text-muted-foreground">Order Number</p>
+                <p className="text-lg font-semibold text-foreground">
+                  {order.orderNumber || order.id}
+                </p>
+              </div>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Order Items */}
@@ -159,21 +167,24 @@ export default function OrderConfirmation() {
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button onClick={() => navigate('/products')} variant="outline" size="lg">
-              Continue Shopping
+            <Button onClick={() => navigate('/account')} variant="outline" size="lg">
+              View My Orders
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
-            <Link to={`/track?order=${order.orderNumber || order.id}`}>
-              <Button size="lg">
-                <Package className="mr-2 h-5 w-5" />
-                Track Order
-              </Button>
-            </Link>
+            <Button 
+              onClick={() => navigate(`/track?order=${order.orderNumber || order.id}`)} 
+              size="lg"
+            >
+              <Package className="mr-2 h-5 w-5" />
+              Track Order
+            </Button>
           </div>
         </div>
       </div>
     </div>
   );
 }
+
+
 
 

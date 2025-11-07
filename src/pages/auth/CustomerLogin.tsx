@@ -1,29 +1,133 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
-import { useLogin } from "@/hooks/useLogin";
+import { useMutation } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
+import { API_BASE_URL } from '@/lib/api-config';
+import { useToast } from '@/hooks/use-toast';
 
-export default function Login() {
-  const [searchParams] = useSearchParams();
-  const isCustomerLogin = searchParams.has('redirect');
+interface LoginData {
+  email: string;
+  password: string;
+}
+
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
+  isVerified: boolean;
+}
+
+interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: {
+    user: User;
+    token?: string;
+    isPendingApproval?: boolean;
+  };
+}
+
+const customerLoginApi = async (data: LoginData): Promise<AuthResponse> => {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Login failed');
+  }
+
+  return response.json();
+};
+
+export default function CustomerLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
-  const loginMutation = useLogin();
+  
+  const { setUser } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [searchParams] = useSearchParams();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const customerLoginMutation = useMutation({
+    mutationFn: customerLoginApi,
+    onSuccess: (data) => {
+      if (data.data.token) {
+        localStorage.setItem('afrigos-token', data.data.token);
+        localStorage.setItem('afrigos-user', JSON.stringify(data.data.user));
+        
+        // Transform user data to match AuthContext interface
+        const transformedUser = {
+          id: data.data.user.id,
+          email: data.data.user.email,
+          name: `${data.data.user.firstName} ${data.data.user.lastName}`,
+          role: data.data.user.role.toLowerCase() as 'admin' | 'vendor' | 'customer',
+          avatar: null,
+          isActive: data.data.user.isActive,
+          isVerified: data.data.user.isVerified
+        };
+        
+        // Update AuthContext with the logged-in user
+        setUser(transformedUser);
+      }
+      
+      // Redirect non-customers to appropriate portals
+      if (data.data.user.role.toLowerCase() === 'admin') {
+        toast({
+          title: "Access Denied",
+          description: "Admins should use the admin login portal.",
+          variant: "destructive",
+        });
+        navigate("/auth/login");
+        return;
+      }
+      
+      if (data.data.user.role.toLowerCase() === 'vendor') {
+        toast({
+          title: "Access Denied",
+          description: "Vendors should use the vendor login portal.",
+          variant: "destructive",
+        });
+        navigate("/auth/vendor-login");
+        return;
+      }
+      
+      toast({
+        title: "Welcome back!",
+        description: "Successfully logged into your account",
+      });
+      
+      // Check for redirect parameter
+      const redirectTo = searchParams.get('redirect');
+      navigate(redirectTo || '/account');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Login Failed",
+        description: error.message || "Invalid email or password. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    loginMutation.mutate({
-      email,
-      password
-    });
+    customerLoginMutation.mutate({ email, password });
   };
 
   return (
@@ -37,20 +141,18 @@ export default function Login() {
             className="w-16 h-16 rounded-xl mx-auto mb-4 object-cover"
           />
           <h1 className="text-2xl font-bold text-foreground">AfriGos</h1>
-          <p className="text-muted-foreground">{isCustomerLogin ? 'Customer Login' : 'Admin Dashboard'}</p>
+          <p className="text-muted-foreground">Customer Login</p>
         </div>
 
         <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
             <CardDescription>
-              {isCustomerLogin 
-                ? 'Sign in to your account to continue' 
-                : 'Sign in to your admin account to continue'}
+              Sign in to your account to continue shopping
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
                 <div className="relative">
@@ -58,7 +160,7 @@ export default function Login() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@afrigos.com"
+                    placeholder="your@email.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-10"
@@ -106,16 +208,19 @@ export default function Login() {
 
               <Button 
                 type="submit" 
-                className="w-full bg-gradient-to-r from-primary to-dashboard-accent hover:opacity-90"
-                disabled={loginMutation.isPending}
+                className="w-full bg-gradient-to-r from-primary to-orange-500 hover:opacity-90"
+                disabled={customerLoginMutation.isPending}
               >
-                {loginMutation.isPending ? "Signing In..." : "Sign In"}
+                {customerLoginMutation.isPending ? "Signing In..." : "Sign In"}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Demo credentials: admin@afrigos.com / admin123
+                Don't have an account?{" "}
+                <Link to="/auth/customer-signup" className="text-primary hover:underline font-medium">
+                  Sign Up
+                </Link>
               </p>
             </div>
           </CardContent>
@@ -133,3 +238,4 @@ export default function Login() {
     </div>
   );
 }
+

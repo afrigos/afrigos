@@ -6,7 +6,86 @@ import { authenticate } from '../middleware/auth';
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Apply authentication to all routes
+// @desc    Get order by order number (public, for tracking)
+// @route   GET /api/v1/orders/track/:orderNumber
+// @access  Public
+router.get('/track/:orderNumber', async (req: any, res: any) => {
+  try {
+    const { orderNumber } = req.params;
+
+    const order = await prisma.order.findFirst({
+      where: { orderNumber },
+      include: {
+        vendor: {
+          select: {
+            id: true,
+            businessName: true
+          }
+        },
+        orderItems: {
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                images: true,
+                sku: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    // For public tracking, only return order status and shipping info
+    // No sensitive customer/vendor details
+    const shippingAddress = typeof order.shippingAddress === 'string' 
+      ? JSON.parse(order.shippingAddress) 
+      : order.shippingAddress;
+
+    res.json({
+      success: true,
+      data: {
+        id: order.id,
+        orderNumber: order.orderNumber,
+        status: order.status,
+        paymentStatus: order.paymentStatus,
+        createdAt: order.createdAt,
+        updatedAt: order.updatedAt,
+        shippingAddress: shippingAddress,
+        totalAmount: order.totalAmount,
+        shippingCost: order.shippingCost,
+        orderItems: order.orderItems.map(item => ({
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+          product: {
+            name: item.product.name,
+            images: item.product.images
+          }
+        })),
+        vendor: {
+          businessName: order.vendor.businessName
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Track order error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to track order'
+    });
+  }
+});
+
+// Apply authentication to all routes below
 router.use(authenticate);
 
 // @desc    Get orders
