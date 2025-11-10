@@ -157,10 +157,10 @@ export default function PendingApproval() {
                 <Mail className="h-4 w-4" />
                 <span>Questions? Contact us at</span>
                 <a 
-                  href="mailto:support@afrigos.com" 
+                  href="mailto:enquiries@afrigos.com" 
                   className="text-orange-600 hover:underline"
                 >
-                  support@afrigos.com
+                  enquiries@afrigos.com
                 </a>
               </div>
             </div>

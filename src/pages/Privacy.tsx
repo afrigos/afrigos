@@ -197,7 +197,7 @@ export default function Privacy() {
                 <li><strong>Withdraw Consent:</strong> Withdraw consent for data processing</li>
               </ul>
               <p>
-                To exercise these rights, please contact us at support@afrigos.com. We will respond to your request within 30 days.
+                To exercise these rights, please contact us at enquiries@afrigos.com. We will respond to your request within 30 days.
               </p>
             </CardContent>
           </Card>
@@ -272,7 +272,7 @@ export default function Privacy() {
                 If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:
               </p>
               <p>
-                <strong>Email:</strong> support@afrigos.com<br />
+                <strong>Email:</strong> enquiries@afrigos.com<br />
                 <strong>Address:</strong> 216-218 slack lane, DE22 3EE, United Kingdom
               </p>
               <p>

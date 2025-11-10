@@ -1,189 +1,122 @@
-import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
-import { API_BASE_URL, BACKEND_URL } from "@/lib/api-config";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { 
-  Switch,
-} from "@/components/ui/switch";
-import { 
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar";
-import { 
-  User, 
-  Store, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  Globe, 
-  Edit, 
-  Save, 
-  Upload, 
-  Camera,
-  Shield,
-  Bell,
-  CreditCard,
-  FileText,
-  Settings,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Star,
-  TrendingUp,
-  Users,
-  Package,
-  DollarSign,
-  Calendar,
-  Building,
-  Flag,
-  Languages,
-  Clock3,
-  ShieldCheck,
-  CreditCard as CardIcon,
-  Smartphone,
-  Monitor,
-  Wifi,
-  X,
-  Lock,
-  Eye,
-  EyeOff,
-  Loader2
+import {
+  Download,
+  Edit,
+  Loader2,
+  Mail,
+  MapPin,
+  Phone,
+  Store,
+  Upload,
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/lib/api-config";
+import { Pagination } from "@/components/ui/pagination";
 
-// Mock vendor profile data
-const mockVendorProfile = {
-  personal: {
-    firstName: "Aisha",
-    lastName: "Johnson",
-    email: "aisha.johnson@afrigos.com",
-    phone: "+44 20 7946 0958",
-    avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face",
-    dateJoined: "2023-08-15",
-    lastLogin: "2024-01-21T14:30:00Z",
-    status: "active",
-    verificationStatus: "verified"
-  },
-  business: {
-    businessName: "Authentic African Flavors",
-    businessType: "Sole Proprietorship",
-    businessNumber: "AF2023001",
-    taxId: "GB123456789",
-    description: "Specializing in authentic African spices, traditional foods, and handcrafted products from West Africa. We bring the rich flavors and cultural heritage of Africa to the UK market.",
-    foundedYear: "2020",
-    employees: "1-5",
-    revenue: "£50,000 - £100,000",
-    website: "https://africanflavors.co.uk",
-    socialMedia: {
-      facebook: "https://facebook.com/africanflavors",
-      instagram: "https://instagram.com/africanflavors",
-      twitter: "https://twitter.com/africanflavors"
-    }
-  },
-  address: {
-    street: "123 Victoria Street",
-    city: "London",
-    state: "England",
-    postalCode: "SW1E 5LB",
-    country: "United Kingdom",
-    isPrimary: true,
-    addressType: "business"
-  },
-  preferences: {
-    language: "en",
-    currency: "GBP",
-    timezone: "Europe/London",
-    notifications: {
-      email: true,
-      sms: true,
-      push: true,
-      orderUpdates: true,
-      marketing: false,
-      security: true
-    },
-    privacy: {
-      profileVisibility: "public",
-      showSalesData: false,
-      allowDirectMessages: true
-    }
-  },
-  performance: {
-    rating: 4.8,
-    totalReviews: 247,
-    totalSales: 1247,
-    totalRevenue: 45670.50,
-    responseTime: "2 hours",
-    fulfillmentRate: 98.5,
-    returnRate: 2.1
-  },
-  documents: [
-    {
-      id: "doc1",
-      name: "Business License",
-      type: "license",
-      status: "verified",
-      uploadedDate: "2023-08-15",
-      expiryDate: "2024-08-15"
-    },
-    {
-      id: "doc2",
-      name: "Tax Certificate",
-      type: "tax",
-      status: "verified",
-      uploadedDate: "2023-08-20",
-      expiryDate: "2024-04-05"
-    },
-    {
-      id: "doc3",
-      name: "Insurance Certificate",
-      type: "insurance",
-      status: "pending",
-      uploadedDate: "2024-01-10",
-      expiryDate: "2024-12-31"
-    }
-  ],
-  security: {
-    twoFactorEnabled: true,
-    lastPasswordChange: "2023-12-15",
-    loginHistory: [
-      { date: "2024-01-21T14:30:00Z", ip: "192.168.1.100", device: "Chrome on macOS", location: "London, UK" },
-      { date: "2024-01-21T09:15:00Z", ip: "192.168.1.100", device: "Safari on iPhone", location: "London, UK" },
-      { date: "2024-01-20T16:45:00Z", ip: "192.168.1.100", device: "Chrome on macOS", location: "London, UK" }
-    ]
-  }
+type VendorDocumentType =
+  | "BUSINESS_LICENSE"
+  | "TAX_CERTIFICATE"
+  | "INSURANCE"
+  | "IDENTITY"
+  | "BANK_STATEMENT";
+
+type VendorDocument = {
+  id: string;
+  name: string;
+  type: VendorDocumentType;
+  url: string;
+  status: "PENDING" | "VERIFIED" | "REJECTED";
+  uploadedAt: string;
+  expiresAt?: string | null;
 };
+
+type VendorProfileApi = {
+  id: string;
+  businessName: string;
+  businessType: string;
+  businessNumber?: string | null;
+  taxId?: string | null;
+  description?: string | null;
+  foundedYear?: string | null;
+  employees?: string | null;
+  revenue?: string | null;
+  website?: string | null;
+  socialMedia?: Record<string, string> | null;
+  isVerified: boolean;
+  verificationStatus: "PENDING" | "VERIFIED" | "REJECTED";
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    avatar?: string | null;
+    phone?: string | null;
+    addresses?: Array<{
+      id: string;
+      street: string;
+      city: string;
+      state: string;
+      postalCode: string;
+      country: string;
+      type: string;
+      isDefault: boolean;
+    }>;
+  };
+  documents: VendorDocument[];
+  _count: {
+    products: number;
+    orders: number;
+    reviews: number;
+  };
+  financialSummary?: {
+    totalGross: number;
+    totalCommission: number;
+    totalNet: number;
+    pendingOrderValue: number;
+  };
+};
+
+const DOCUMENT_REQUIREMENTS: Array<{ type: VendorDocumentType; label: string }> = [
+  { type: "BUSINESS_LICENSE", label: "Business License" },
+  { type: "TAX_CERTIFICATE", label: "Tax Certificate" },
+  { type: "INSURANCE", label: "Insurance Certificate" },
+  { type: "IDENTITY", label: "Identity Document" },
+  { type: "BANK_STATEMENT", label: "Bank Statement" },
+];
 
 const BUSINESS_TYPES = [
   "Sole Proprietorship",
   "Partnership",
-  "Limited Liability Company (LLC)",
+  "Limited Liability Company",
   "Corporation",
   "Non-Profit Organization",
-  "Cooperative"
+  "Cooperative",
 ];
 
 const EMPLOYEE_RANGES = [
@@ -192,7 +125,7 @@ const EMPLOYEE_RANGES = [
   "6-10 employees",
   "11-50 employees",
   "51-200 employees",
-  "200+ employees"
+  "200+ employees",
 ];
 
 const REVENUE_RANGES = [
@@ -202,1127 +135,646 @@ const REVENUE_RANGES = [
   "£50,000 - £100,000",
   "£100,000 - £250,000",
   "£250,000 - £500,000",
-  "£500,000+"
+  "£500,000+",
 ];
 
-const COUNTRIES = [
-  "United Kingdom",
-  "Nigeria",
-  "Ghana",
-  "Kenya",
-  "South Africa",
-  "Uganda",
-  "Tanzania",
-  "Other"
-];
+const statusStyles: Record<string, string> = {
+  VERIFIED: "bg-green-100 text-green-700",
+  PENDING: "bg-yellow-100 text-yellow-700",
+  REJECTED: "bg-red-100 text-red-700",
+};
 
-const LANGUAGES = [
-  { code: "en", name: "English" },
-  { code: "fr", name: "Français" },
-  { code: "es", name: "Español" },
-  { code: "pt", name: "Português" },
-  { code: "ar", name: "العربية" },
-  { code: "sw", name: "Kiswahili" },
-  { code: "yo", name: "Yorùbá" },
-  { code: "ha", name: "Hausa" },
-  { code: "ig", name: "Igbo" }
-];
+const documentStatusStyles: Record<string, string> = {
+  VERIFIED: "bg-green-100 text-green-700",
+  PENDING: "bg-amber-100 text-amber-700",
+  REJECTED: "bg-red-100 text-red-700",
+};
+
+const formatDate = (value?: string | null) => {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-GB", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const formatCurrency = (amount?: number) =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    minimumFractionDigits: 2,
+  }).format(amount ?? 0);
+
+type BusinessFormState = {
+  businessName: string;
+  businessType: string;
+  businessNumber: string;
+  taxId: string;
+  description: string;
+  website: string;
+  foundedYear: string;
+  employees: string;
+  revenue: string;
+  phone: string;
+};
+
+const initialBusinessForm: BusinessFormState = {
+  businessName: "",
+  businessType: "",
+  businessNumber: "",
+  taxId: "",
+  description: "",
+  website: "",
+  foundedYear: "",
+  employees: "",
+  revenue: "",
+  phone: "",
+};
 
 export function VendorProfile() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState(mockVendorProfile);
+
   const [isEditing, setIsEditing] = useState(false);
-  const [activeTab, setActiveTab] = useState("overview");
-  const [isUploading, setIsUploading] = useState(false);
-  const [editingSection, setEditingSection] = useState<string | null>(null);
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordData, setPasswordData] = useState({ current: "", new: "", confirm: "" });
-  const [showPassword, setShowPassword] = useState({ current: false, new: false, confirm: false });
-  const [uploadingDocs, setUploadingDocs] = useState<{ [key: string]: boolean }>({});
+  const [businessForm, setBusinessForm] = useState<BusinessFormState>(initialBusinessForm);
+  const [uploadingDocs, setUploadingDocs] = useState<Record<string, boolean>>({});
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  // Fetch vendor profile
-  const { data: vendorProfile, isLoading: loadingProfile, refetch: refetchProfile } = useQuery({
-    queryKey: ['vendor-profile'],
+  const {
+    data: profile,
+    isLoading,
+    refetch,
+    error,
+  } = useQuery({
+    queryKey: ["vendor-profile"],
+    enabled: !!user?.vendorId,
     queryFn: async () => {
-      const response = await apiFetch<{ success: boolean; data: any }>('/vendors/profile');
-      return response.data;
-    },
-    enabled: !!user,
-  });
-
-  // Fetch categories
-  const { data: categoriesData } = useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const response = await apiFetch<{ success: boolean; data: Array<{ id: string; name: string }> }>('/categories?limit=100');
-      return response.data || [];
-    },
-  });
-
-  // Check if vendor needs to submit documents
-  useEffect(() => {
-    if (vendorProfile && user?.isActive && vendorProfile.verificationStatus === 'VERIFIED') {
-      const requiredDocs = ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'INSURANCE', 'IDENTITY', 'BANK_STATEMENT'];
-      const submittedDocs = vendorProfile.documents?.map((d: any) => d.type) || [];
-      const missingDocs = requiredDocs.filter(doc => !submittedDocs.includes(doc));
-      
-      if (missingDocs.length > 0 && !showDocumentModal) {
-        setShowDocumentModal(true);
+      const result = await apiFetch<{ success: boolean; data: VendorProfileApi }>("/vendors/profile");
+      if (!result.success || !result.data) {
+        throw new Error(result.message || "Unable to fetch vendor profile.");
       }
-    }
-  }, [vendorProfile, user, showDocumentModal]);
+      return result.data;
+    },
+  });
 
-  // Update profile when data is fetched
   useEffect(() => {
-    if (vendorProfile) {
-      setProfile({
-        ...profile,
-        business: {
-          ...profile.business,
-          businessName: vendorProfile.businessName || profile.business.businessName,
-          businessType: vendorProfile.businessType || profile.business.businessType,
-          businessNumber: vendorProfile.businessNumber || profile.business.businessNumber,
-          taxId: vendorProfile.taxId || profile.business.taxId,
-          description: vendorProfile.description || profile.business.description,
-          website: vendorProfile.website || profile.business.website,
-        },
+    if (profile) {
+      setBusinessForm({
+        businessName: profile.businessName ?? "",
+        businessType: profile.businessType ?? "",
+        businessNumber: profile.businessNumber ?? "",
+        taxId: profile.taxId ?? "",
+        description: profile.description ?? "",
+        website: profile.website ?? "",
+        foundedYear: profile.foundedYear ?? "",
+        employees: profile.employees ?? "",
+        revenue: profile.revenue ?? "",
+        phone: profile.user.phone ?? "",
       });
     }
-  }, [vendorProfile]);
+  }, [profile]);
 
-  // Save profile mutation
-  const saveProfileMutation = useMutation({
-    mutationFn: async (data: any) => {
-      return apiFetch('/vendors/profile', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+  const updateBusinessMutation = useMutation({
+    mutationFn: async (payload: BusinessFormState) => {
+      const response = await apiFetch<{ success: boolean; message?: string }>(
+        "/vendors/profile",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            businessName: payload.businessName,
+            businessType: payload.businessType,
+            businessNumber: payload.businessNumber || null,
+            taxId: payload.taxId || null,
+            description: payload.description || null,
+            website: payload.website || null,
+            foundedYear: payload.foundedYear || null,
+            employees: payload.employees || null,
+            revenue: payload.revenue || null,
+            phone: payload.phone || null,
+          }),
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to update business profile.");
+      }
     },
     onSuccess: () => {
       toast({
-        title: "Profile Updated",
-        description: "Your profile has been updated successfully.",
+        title: "Profile updated",
+        description: "Your business information has been saved.",
       });
       setIsEditing(false);
-      setEditingSection(null);
-      refetchProfile();
+      refetch();
     },
-    onError: (error: any) => {
+    onError: (mutationError: any) => {
       toast({
-        title: "Update Failed",
-        description: error.message || "Failed to update profile. Please try again.",
+        title: "Update failed",
+        description:
+          mutationError instanceof Error ? mutationError.message : "Unable to update profile right now.",
         variant: "destructive",
       });
     },
   });
 
-  const handleSave = async () => {
-    const businessData = {
-      businessName: profile.business.businessName,
-      businessType: profile.business.businessType,
-      businessNumber: profile.business.businessNumber,
-      taxId: profile.business.taxId,
-      description: profile.business.description,
-      website: profile.business.website,
-      foundedYear: profile.business.foundedYear,
-      employees: profile.business.employees,
-      revenue: profile.business.revenue,
-    };
-    saveProfileMutation.mutate(businessData);
-  };
-
-  // Handle document upload
-  const handleDocumentUpload = async (type: string, file: File) => {
-    setUploadingDocs(prev => ({ ...prev, [type]: true }));
+  const handleDocumentUpload = async (type: VendorDocumentType, file: File) => {
+    setUploadingDocs((prev) => ({ ...prev, [type]: true }));
     try {
+      const token = localStorage.getItem("afrigos-token");
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('type', type);
-      
-      const token = localStorage.getItem('afrigos-token');
-      const response = await fetch(`${BACKEND_URL}/api/v1/vendors/documents`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+      formData.append("file", file);
+      formData.append("type", type);
+
+      const response = await fetch(`${API_BASE_URL}/vendors/documents`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to upload document');
+      const json = await response.json();
+
+      if (!response.ok || !json.success) {
+        throw new Error(json.message || "Failed to upload document.");
       }
 
       toast({
-        title: "Document Uploaded",
-        description: "Your document has been uploaded successfully and is pending review.",
+        title: "Document uploaded",
+        description: "Your document has been submitted and is pending review.",
       });
-      refetchProfile();
-    } catch (error: any) {
+      refetch();
+    } catch (uploadError: any) {
       toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload document. Please try again.",
+        title: "Upload failed",
+        description: uploadError instanceof Error ? uploadError.message : "Unable to upload document.",
         variant: "destructive",
       });
     } finally {
-      setUploadingDocs(prev => ({ ...prev, [type]: false }));
+      setUploadingDocs((prev) => ({ ...prev, [type]: false }));
     }
   };
 
-  // Handle password change
-  const handlePasswordChange = async () => {
-    if (passwordData.new !== passwordData.confirm) {
-      toast({
-        title: "Password Mismatch",
-        description: "New password and confirmation do not match.",
-        variant: "destructive",
-      });
-      return;
+  const displayName = useMemo(() => {
+    if (!profile) return "Vendor";
+    if (profile.businessName?.trim()) return profile.businessName.trim();
+    const first = profile.user.firstName ?? "";
+    const last = profile.user.lastName ?? "";
+    const fallback = `${first} ${last}`.trim();
+    return fallback || profile.user.email;
+  }, [profile]);
+
+  const verificationStatus = profile?.verificationStatus ?? "PENDING";
+
+  const stats = useMemo(() => {
+    if (!profile) {
+      return [
+        { label: "Products", value: "0" },
+        { label: "Orders", value: "0" },
+        { label: "Reviews", value: "0" },
+        { label: "Net Revenue", value: formatCurrency(0) },
+      ];
     }
 
-    if (passwordData.new.length < 8) {
-      toast({
-        title: "Password Too Short",
-        description: "Password must be at least 8 characters long.",
-        variant: "destructive",
-      });
-      return;
-    }
+    return [
+      { label: "Products", value: profile._count.products.toString() },
+      { label: "Orders", value: profile._count.orders.toString() },
+      { label: "Reviews", value: profile._count.reviews.toString() },
+      {
+        label: "Net Revenue",
+        value: formatCurrency(profile.financialSummary?.totalNet ?? 0),
+      },
+    ];
+  }, [profile]);
 
-    try {
-      await apiFetch('/auth/change-password', {
-        method: 'POST',
-        body: JSON.stringify({
-          currentPassword: passwordData.current,
-          newPassword: passwordData.new,
-        }),
-      });
+  const businessNameError = isEditing && !businessForm.businessName.trim();
+  const businessTypeError = isEditing && !businessForm.businessType.trim();
 
-      toast({
-        title: "Password Changed",
-        description: "Your password has been changed successfully.",
-      });
-      setShowPasswordModal(false);
-      setPasswordData({ current: "", new: "", confirm: "" });
-    } catch (error: any) {
-      toast({
-        title: "Password Change Failed",
-        description: error.message || "Failed to change password. Please check your current password.",
-        variant: "destructive",
-      });
-    }
-  };
+  if (authLoading || isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Skeleton className="h-64 w-full rounded-xl" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
+      </div>
+    );
+  }
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Unable to load profile</CardTitle>
+          <CardDescription>{error instanceof Error ? error.message : "Please try again later."}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => refetch()}>Retry</Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid File Type",
-        description: "Please upload an image file.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      // Simulate upload
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const newAvatarUrl = URL.createObjectURL(file);
-      setProfile({
-        ...profile,
-        personal: {
-          ...profile.personal,
-          avatar: newAvatarUrl
-        }
-      });
-
-      toast({
-        title: "Avatar Updated",
-        description: "Your profile picture has been updated successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Upload Failed",
-        description: "Failed to update avatar. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP'
-    }).format(amount);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'verified': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      case 'active': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'verified': return CheckCircle;
-      case 'pending': return Clock;
-      case 'rejected': return AlertTriangle;
-      case 'active': return CheckCircle;
-      default: return Clock;
-    }
-  };
+  if (!user?.vendorId || !profile) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Vendor profile unavailable</CardTitle>
+          <CardDescription>
+            We couldn’t find an active vendor profile for this account. Please contact support if you believe
+            this is an error.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Header with Afri GoS gradient */}
-      <div className="bg-afrigos-hero rounded-xl p-6 shadow-afrigos">
-        <div className="flex items-center justify-between">
+      <Card className="border border-border shadow-sm">
+        <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-muted/40 rounded-t-xl">
           <div>
-            <h1 className="text-3xl font-bold text-white">Profile Settings</h1>
-            <p className="text-white/90">Manage your vendor account and store information</p>
+            <CardTitle className="flex items-center gap-3 text-2xl">
+              <Store className="h-6 w-6 text-primary" />
+              {displayName}
+            </CardTitle>
+            <CardDescription className="flex items-center gap-2 pt-2">
+              <span>{profile.user.email}</span>
+              {profile.user.phone ? (
+                <>
+                  <span>•</span>
+                  <span>{profile.user.phone}</span>
+                </>
+              ) : null}
+            </CardDescription>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button variant="outline" onClick={() => setIsEditing(!isEditing)} className="bg-white/10 border-white/20 text-white hover:bg-white/20">
-              <Edit className="h-4 w-4 mr-2" />
-              {isEditing ? "Cancel" : "Edit Profile"}
+          <div className="flex items-center gap-2">
+            <Badge className={cn("capitalize", statusStyles[verificationStatus] ?? statusStyles.PENDING)}>
+              {verificationStatus.toLowerCase()}
+            </Badge>
+            <Button
+              variant={isEditing ? "secondary" : "outline"}
+              onClick={() => setIsEditing((prev) => !prev)}
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              {isEditing ? "Cancel" : "Edit"}
             </Button>
             {isEditing && (
-              <Button onClick={handleSave} className="bg-white text-afrigos hover:bg-white/90">
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
+              <Button
+                onClick={() => updateBusinessMutation.mutate(businessForm)}
+                disabled={updateBusinessMutation.isPending || businessNameError || businessTypeError}
+              >
+                {updateBusinessMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  "Save changes"
+                )}
               </Button>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6 bg-white shadow-md">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Overview</TabsTrigger>
-          <TabsTrigger value="personal" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Personal</TabsTrigger>
-          <TabsTrigger value="business" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Business</TabsTrigger>
-          <TabsTrigger value="address" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Address</TabsTrigger>
-          <TabsTrigger value="preferences" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Preferences</TabsTrigger>
-          <TabsTrigger value="security" className="data-[state=active]:bg-afrigos-gradient data-[state=active]:text-white">Security</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {/* Profile Card */}
-            <Card className="lg:col-span-1 border-afrigos/20 shadow-afrigos">
-              <CardHeader className="bg-afrigos-gradient/10">
-                <CardTitle className="flex items-center space-x-2 text-afrigos">
-                  <User className="h-5 w-5" />
-                  <span>Profile Overview</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="relative">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage src={profile.personal.avatar} alt="Profile" />
-                      <AvatarFallback>
-                        {profile.personal.firstName[0]}{profile.personal.lastName[0]}
-                      </AvatarFallback>
-                    </Avatar>
-                    {isEditing && (
-                      <label className="absolute bottom-0 right-0 bg-afrigos-gradient text-white rounded-full p-2 cursor-pointer hover:opacity-90 transition-all shadow-lg">
-                        <Camera className="h-4 w-4" />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleAvatarUpload}
-                          className="hidden"
-                          disabled={isUploading}
-                        />
-                      </label>
-                    )}
-                  </div>
-                  <div className="text-center">
-                    <h3 className="font-semibold text-lg">
-                      {profile.personal.firstName} {profile.personal.lastName}
-                    </h3>
-                    <p className="text-muted-foreground">{profile.business.businessName}</p>
-                      <Badge className={getStatusColor(profile.personal.verificationStatus)}>
-                        <span className="mr-1">
-                          {(() => {
-                            const IconComponent = getStatusIcon(profile.personal.verificationStatus);
-                            return <IconComponent className="h-4 w-4" />;
-                          })()}
-                        </span>
-                        <span className="capitalize">{profile.personal.verificationStatus}</span>
-                      </Badge>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.personal.email}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.personal.phone}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{profile.address.city}, {profile.address.country}</span>
-                  </div>
-                  <div className="flex items-center space-x-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>Joined {new Date(profile.personal.dateJoined).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Performance Metrics */}
-            <Card className="lg:col-span-2 border-afrigos/20 shadow-afrigos">
-              <CardHeader className="bg-afrigos-gradient/10">
-                <CardTitle className="flex items-center space-x-2 text-afrigos">
-                  <TrendingUp className="h-5 w-5" />
-                  <span>Performance Metrics</span>
-                </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-4 pt-4">
+          {stats.map((item) => (
+            <Card key={item.label} className="border-muted/60 bg-muted/30">
+              <CardHeader className="pb-2">
+                <CardDescription>{item.label}</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Star className="h-4 w-4 text-afrigos-glow" />
-                      <span className="text-sm font-medium">Rating</span>
-                    </div>
-                    <p className="text-2xl font-bold text-afrigos">{profile.performance.rating}/5.0</p>
-                    <p className="text-xs text-muted-foreground">{profile.performance.totalReviews} reviews</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Package className="h-4 w-4 text-afrigos" />
-                      <span className="text-sm font-medium">Total Sales</span>
-                    </div>
-                    <p className="text-2xl font-bold text-afrigos">{profile.performance.totalSales}</p>
-                    <p className="text-xs text-muted-foreground">products sold</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <DollarSign className="h-4 w-4 text-afrigos" />
-                      <span className="text-sm font-medium">Total Revenue</span>
-                    </div>
-                    <p className="text-2xl font-bold text-afrigos">{formatCurrency(profile.performance.totalRevenue)}</p>
-                    <p className="text-xs text-muted-foreground">lifetime earnings</p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-afrigos" />
-                      <span className="text-sm font-medium">Fulfillment Rate</span>
-                    </div>
-                    <p className="text-2xl font-bold text-afrigos">{profile.performance.fulfillmentRate}%</p>
-                    <p className="text-xs text-muted-foreground">on-time delivery</p>
-                  </div>
-                </div>
+                <p className="text-2xl font-semibold text-foreground">{item.value}</p>
               </CardContent>
             </Card>
-          </div>
+          ))}
+        </CardContent>
+      </Card>
 
-          {/* Documents Status */}
-          <Card className="border-afrigos/20 shadow-afrigos">
-            <CardHeader className="bg-afrigos-gradient/10">
-              <CardTitle className="flex items-center space-x-2 text-afrigos">
-                <FileText className="h-5 w-5" />
-                <span>Document Verification</span>
-              </CardTitle>
-              <CardDescription>Required documents for vendor verification</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {profile.documents.map((doc) => {
-                  const statusInfo = getStatusColor(doc.status);
-                  const StatusIconComponent = getStatusIcon(doc.status);
-                  return (
-                    <div key={doc.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{doc.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Expires: {new Date(doc.expiryDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Badge className={statusInfo}>
-                        <StatusIconComponent className="h-3 w-3 mr-1" />
-                        {doc.status}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Personal Information Tab */}
-        <TabsContent value="personal" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Personal Information</CardTitle>
-              <CardDescription>Your personal details and contact information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">First Name</label>
-                  <Input
-                    value={profile.personal.firstName}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      personal: { ...profile.personal, firstName: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Last Name</label>
-                  <Input
-                    value={profile.personal.lastName}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      personal: { ...profile.personal, lastName: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Email Address</label>
-                  <Input
-                    value={profile.personal.email}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      personal: { ...profile.personal, email: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                    type="email"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Phone Number</label>
-                  <Input
-                    value={profile.personal.phone}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      personal: { ...profile.personal, phone: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Business Information Tab */}
-        <TabsContent value="business" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Information</CardTitle>
-              <CardDescription>Your business details and legal information</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Business Name</label>
-                  <Input
-                    value={profile.business.businessName}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, businessName: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Business Type</Label>
-                  <Select
-                    value={profile.business.businessType}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, businessType: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUSINESS_TYPES.map((type) => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-sm font-medium">Category</Label>
-                  <Select
-                    value={(profile.business as any).categoryId || ""}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, categoryId: value } as any
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categoriesData?.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Business Number</label>
-                  <Input
-                    value={profile.business.businessNumber}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, businessNumber: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Tax ID</label>
-                  <Input
-                    value={profile.business.taxId}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, taxId: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Founded Year</label>
-                  <Input
-                    value={profile.business.foundedYear}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, foundedYear: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                    type="text"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Number of Employees</label>
-                  <Select
-                    value={profile.business.employees}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, employees: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {EMPLOYEE_RANGES.map((range) => (
-                        <SelectItem key={range} value={range}>{range}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Annual Revenue</label>
-                  <Select
-                    value={profile.business.revenue}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, revenue: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REVENUE_RANGES.map((range) => (
-                        <SelectItem key={range} value={range}>{range}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Website</label>
-                  <Input
-                    value={profile.business.website}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      business: { ...profile.business, website: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                    placeholder="https://your-website.com"
-                  />
-                </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Business details</CardTitle>
+            <CardDescription>Keep your storefront information up to date.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="text-sm font-medium">Store name</label>
+                <Input
+                  value={businessForm.businessName}
+                  onChange={(event) =>
+                    setBusinessForm((prev) => ({ ...prev, businessName: event.target.value }))
+                  }
+                  disabled={!isEditing}
+                  placeholder="e.g. Mama Asha's Kitchen"
+                />
+                {businessNameError && (
+                  <p className="text-xs text-destructive mt-1">Store name is required.</p>
+                )}
               </div>
               <div>
-                <Label className="text-sm font-medium">Business Description</Label>
-                <Textarea
-                  value={profile.business.description}
-                  onChange={(e) => setProfile({
-                    ...profile,
-                    business: { ...profile.business, description: e.target.value }
-                  })}
+                <label className="text-sm font-medium">Business type</label>
+                <Select
+                  value={businessForm.businessType || ""}
+                  onValueChange={(value) => setBusinessForm((prev) => ({ ...prev, businessType: value }))}
                   disabled={!isEditing}
-                  rows={4}
-                  placeholder="Describe your business..."
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUSINESS_TYPES.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {businessTypeError && (
+                  <p className="text-xs text-destructive mt-1">Business type is required.</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Business number</label>
+                <Input
+                  value={businessForm.businessNumber}
+                  onChange={(event) =>
+                    setBusinessForm((prev) => ({ ...prev, businessNumber: event.target.value }))
+                  }
+                  disabled={!isEditing}
+                  placeholder="Registration number"
                 />
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <label className="text-sm font-medium">Tax ID</label>
+                <Input
+                  value={businessForm.taxId}
+                  onChange={(event) => setBusinessForm((prev) => ({ ...prev, taxId: event.target.value }))}
+                  disabled={!isEditing}
+                  placeholder="Tax identification"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Founded year</label>
+                <Input
+                  value={businessForm.foundedYear}
+                  onChange={(event) =>
+                    setBusinessForm((prev) => ({ ...prev, foundedYear: event.target.value }))
+                  }
+                  disabled={!isEditing}
+                  placeholder="e.g. 2022"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Employees</label>
+                <Select
+                  value={businessForm.employees || ""}
+                  onValueChange={(value) => setBusinessForm((prev) => ({ ...prev, employees: value }))}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EMPLOYEE_RANGES.map((range) => (
+                      <SelectItem key={range} value={range}>
+                        {range}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Annual revenue</label>
+                <Select
+                  value={businessForm.revenue || ""}
+                  onValueChange={(value) => setBusinessForm((prev) => ({ ...prev, revenue: value }))}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select range" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {REVENUE_RANGES.map((range) => (
+                      <SelectItem key={range} value={range}>
+                        {range}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Website</label>
+                <Input
+                  value={businessForm.website}
+                  onChange={(event) =>
+                    setBusinessForm((prev) => ({ ...prev, website: event.target.value }))
+                  }
+                  disabled={!isEditing}
+                  placeholder="https://yourstore.com"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Store description</label>
+              <Textarea
+                value={businessForm.description}
+                onChange={(event) =>
+                  setBusinessForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+                disabled={!isEditing}
+                rows={4}
+                placeholder="Tell customers about your products and story."
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Document Upload Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Required Documents</CardTitle>
-              <CardDescription>Upload required documents for verification</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { type: 'BUSINESS_LICENSE', label: 'Business License', required: true },
-                { type: 'TAX_CERTIFICATE', label: 'Tax Certificate', required: true },
-                { type: 'INSURANCE', label: 'Insurance Certificate', required: true },
-                { type: 'IDENTITY', label: 'Identity Document', required: true },
-                { type: 'BANK_STATEMENT', label: 'Bank Statement', required: true },
-              ].map((doc) => {
-                const existingDoc = vendorProfile?.documents?.find((d: any) => d.type === doc.type);
-                return (
-                  <div key={doc.type} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex-1">
-                      <Label className="text-sm font-medium">{doc.label}</Label>
-                      {existingDoc && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Status: <Badge variant={existingDoc.status === 'VERIFIED' ? 'default' : 'secondary'}>{existingDoc.status}</Badge>
-                        </p>
+        <Card>
+          <CardHeader>
+            <CardTitle>Contact information</CardTitle>
+            <CardDescription>How customers and AfriGos can reach you.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <span>{profile.user.email}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              {isEditing ? (
+                <Input
+                  value={businessForm.phone}
+                  onChange={(event) =>
+                    setBusinessForm((prev) => ({ ...prev, phone: event.target.value }))
+                  }
+                  placeholder="Business contact number"
+                />
+              ) : (
+                <span>{profile.user.phone || "Not provided"}</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-3">
+              <p className="text-sm font-medium text-muted-foreground">Business addresses</p>
+              {profile.user.addresses && profile.user.addresses.length > 0 ? (
+                profile.user.addresses.map((address) => (
+                  <div
+                    key={address.id}
+                    className={cn(
+                      "rounded-lg border p-3 text-sm space-y-1",
+                      address.isDefault ? "border-primary/40 bg-primary/5" : "border-border"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <MapPin className="h-4 w-4" />
+                      <span>{address.type.toLowerCase()} address</span>
+                      {address.isDefault && (
+                        <Badge variant="outline" className="text-xs text-primary border-primary/40">
+                          Default
+                        </Badge>
                       )}
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        type="file"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            handleDocumentUpload(doc.type, file);
-                          }
-                        }}
-                        disabled={uploadingDocs[doc.type]}
-                        className="hidden"
-                        id={`doc-${doc.type}`}
-                      />
-                      <Label htmlFor={`doc-${doc.type}`}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={uploadingDocs[doc.type]}
-                          asChild
-                        >
-                          <span>
-                            {uploadingDocs[doc.type] ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Uploading...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="h-4 w-4 mr-2" />
-                                {existingDoc ? 'Replace' : 'Upload'}
-                              </>
-                            )}
-                          </span>
-                        </Button>
-                      </Label>
-                    </div>
+                    <p>
+                      {address.street}
+                      <br />
+                      {address.city}, {address.state}
+                      <br />
+                      {address.postalCode}, {address.country}
+                    </p>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No business addresses on file yet. Add one from your account settings.
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {/* Address Tab */}
-        <TabsContent value="address" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Business Address</CardTitle>
-              <CardDescription>Your business location and shipping address</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium">Street Address</label>
-                  <Input
-                    value={profile.address.street}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      address: { ...profile.address, street: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">City</label>
-                  <Input
-                    value={profile.address.city}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      address: { ...profile.address, city: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">State/Region</label>
-                  <Input
-                    value={profile.address.state}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      address: { ...profile.address, state: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Postal Code</label>
-                  <Input
-                    value={profile.address.postalCode}
-                    onChange={(e) => setProfile({
-                      ...profile,
-                      address: { ...profile.address, postalCode: e.target.value }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Country</label>
-                  <Select
-                    value={profile.address.country}
-                    onValueChange={(value) => setProfile({
-                      ...profile,
-                      address: { ...profile.address, country: value }
-                    })}
-                    disabled={!isEditing}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((country) => (
-                        <SelectItem key={country} value={country}>{country}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+      <Card>
+        <CardHeader>
+          <CardTitle>Verification documents</CardTitle>
+          <CardDescription>Upload official documents to verify your business.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {DOCUMENT_REQUIREMENTS.map(({ type, label }) => {
+            const existing = profile.documents.find((doc) => doc.type === type);
+            const isUploading = uploadingDocs[type];
 
-        {/* Preferences Tab */}
-        <TabsContent value="preferences" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose how you want to be notified</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Email Notifications</label>
-                    <p className="text-xs text-muted-foreground">Receive updates via email</p>
-                  </div>
-                  <Switch
-                    checked={profile.preferences.notifications.email}
-                    onCheckedChange={(checked) => setProfile({
-                      ...profile,
-                      preferences: {
-                        ...profile.preferences,
-                        notifications: { ...profile.preferences.notifications, email: checked }
-                      }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">SMS Notifications</label>
-                    <p className="text-xs text-muted-foreground">Receive updates via SMS</p>
-                  </div>
-                  <Switch
-                    checked={profile.preferences.notifications.sms}
-                    onCheckedChange={(checked) => setProfile({
-                      ...profile,
-                      preferences: {
-                        ...profile.preferences,
-                        notifications: { ...profile.preferences.notifications, sms: checked }
-                      }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Push Notifications</label>
-                    <p className="text-xs text-muted-foreground">Receive browser notifications</p>
-                  </div>
-                  <Switch
-                    checked={profile.preferences.notifications.push}
-                    onCheckedChange={(checked) => setProfile({
-                      ...profile,
-                      preferences: {
-                        ...profile.preferences,
-                        notifications: { ...profile.preferences.notifications, push: checked }
-                      }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Order Updates</label>
-                    <p className="text-xs text-muted-foreground">Get notified about order changes</p>
-                  </div>
-                  <Switch
-                    checked={profile.preferences.notifications.orderUpdates}
-                    onCheckedChange={(checked) => setProfile({
-                      ...profile,
-                      preferences: {
-                        ...profile.preferences,
-                        notifications: { ...profile.preferences.notifications, orderUpdates: checked }
-                      }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Marketing</label>
-                    <p className="text-xs text-muted-foreground">Receive promotional content</p>
-                  </div>
-                  <Switch
-                    checked={profile.preferences.notifications.marketing}
-                    onCheckedChange={(checked) => setProfile({
-                      ...profile,
-                      preferences: {
-                        ...profile.preferences,
-                        notifications: { ...profile.preferences.notifications, marketing: checked }
-                      }
-                    })}
-                    disabled={!isEditing}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-        </TabsContent>
-
-        {/* Security Tab */}
-        <TabsContent value="security" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Security Settings</CardTitle>
-                <CardDescription>Manage your account security</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Password</Label>
+            return (
+              <div
+                key={type}
+                className="flex flex-col gap-3 rounded-md border border-dashed border-border/70 p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div className="space-y-1">
+                  <p className="font-medium">{label}</p>
                   <p className="text-sm text-muted-foreground">
-                    Last changed: {new Date(profile.security.lastPasswordChange).toLocaleDateString()}
+                    {existing
+                      ? `Uploaded ${formatDate(existing.uploadedAt)}`
+                      : "Required for vendor verification."}
                   </p>
-                  <Button variant="outline" size="sm" onClick={() => setShowPasswordModal(true)}>
-                    <Lock className="h-4 w-4 mr-2" />
-                    Change Password
+                  {existing ? (
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        className={cn(
+                          "capitalize",
+                          documentStatusStyles[existing.status] ?? documentStatusStyles.PENDING
+                        )}
+                      >
+                        {existing.status.toLowerCase()}
+                      </Badge>
+                      <Button variant="ghost" size="sm" asChild>
+                        <a href={existing.url} target="_blank" rel="noopener noreferrer">
+                          <Download className="mr-2 h-4 w-4" />
+                          View document
+                        </a>
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={(el) => {
+                      fileInputRefs.current[type] = el;
+                    }}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        handleDocumentUpload(type, file);
+                      }
+                      event.target.value = "";
+                    }}
+                    disabled={isUploading}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isUploading}
+                    onClick={() => fileInputRefs.current[type]?.click()}
+                  >
+                    {isUploading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        {existing ? "Replace" : "Upload"}
+                      </>
+                    )}
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Login Activity</CardTitle>
-                <CardDescription>Monitor your account access</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {profile.security.loginHistory.slice(0, 3).map((login, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          {login.device.includes('iPhone') ? (
-                            <Smartphone className="h-4 w-4 text-blue-600" />
-                          ) : (
-                            <Monitor className="h-4 w-4 text-blue-600" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">{login.device}</p>
-                          <p className="text-xs text-muted-foreground">{login.location}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">{login.ip}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(login.date).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {/* Document Submission Modal */}
-      <Dialog open={showDocumentModal} onOpenChange={setShowDocumentModal}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              <span>Document Submission Required</span>
-            </DialogTitle>
-            <DialogDescription>
-              As an approved vendor, you need to submit the following required documents to continue using the platform.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Please go to the <strong>Business</strong> tab and upload the following documents:
-            </p>
-            <ul className="list-disc list-inside space-y-2 text-sm">
-              <li>Business License</li>
-              <li>Tax Certificate</li>
-              <li>Insurance Certificate</li>
-              <li>Identity Document</li>
-              <li>Bank Statement</li>
-            </ul>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setShowDocumentModal(false)}>
-                I'll do it later
-              </Button>
-              <Button onClick={() => {
-                setShowDocumentModal(false);
-                setActiveTab("business");
-              }}>
-                Go to Business Tab
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Password Change Modal */}
-      <Dialog open={showPasswordModal} onOpenChange={setShowPasswordModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Change Password</DialogTitle>
-            <DialogDescription>
-              Enter your current password and choose a new one.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="current-password">Current Password</Label>
-              <div className="relative">
-                <Input
-                  id="current-password"
-                  type={showPassword.current ? "text" : "password"}
-                  value={passwordData.current}
-                  onChange={(e) => setPasswordData({ ...passwordData, current: e.target.value })}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowPassword({ ...showPassword, current: !showPassword.current })}
-                >
-                  {showPassword.current ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
               </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {profile.financialSummary ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Financial summary</CardTitle>
+            <CardDescription>Lifetime performance across AfriGos.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase text-muted-foreground">Gross revenue</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {formatCurrency(profile.financialSummary.totalGross)}
+              </p>
             </div>
-            <div>
-              <Label htmlFor="new-password">New Password</Label>
-              <div className="relative">
-                <Input
-                  id="new-password"
-                  type={showPassword.new ? "text" : "password"}
-                  value={passwordData.new}
-                  onChange={(e) => setPasswordData({ ...passwordData, new: e.target.value })}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
-                >
-                  {showPassword.new ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase text-muted-foreground">Commission paid</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {formatCurrency(profile.financialSummary.totalCommission)}
+              </p>
             </div>
-            <div>
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <div className="relative">
-                <Input
-                  id="confirm-password"
-                  type={showPassword.confirm ? "text" : "password"}
-                  value={passwordData.confirm}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3"
-                  onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
-                >
-                  {showPassword.confirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase text-muted-foreground">Net earnings</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {formatCurrency(profile.financialSummary.totalNet)}
+              </p>
             </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => {
-                setShowPasswordModal(false);
-                setPasswordData({ current: "", new: "", confirm: "" });
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handlePasswordChange}>
-                Change Password
-              </Button>
+            <div className="rounded-lg border p-4">
+              <p className="text-xs uppercase text-muted-foreground">Pending order value</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">
+                {formatCurrency(profile.financialSummary.pendingOrderValue)}
+              </p>
             </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
+
+export default VendorProfile;
+

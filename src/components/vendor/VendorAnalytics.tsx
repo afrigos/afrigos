@@ -1,548 +1,455 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  ShoppingCart, 
-  Package,
-  Star,
-  Users,
-  Eye,
-  Download,
-  RefreshCw,
-  BarChart3,
-  PieChart,
-  Activity,
-  Target,
-  Calendar,
-  ArrowUpRight,
-  ArrowDownRight,
-  LineChart
-} from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/api-client";
+import { DollarSign, ShoppingCart, Package, Star, RefreshCw, Download } from "lucide-react";
+import { Pagination } from "@/components/ui/pagination";
 
-// Mock analytics data for vendor
-const vendorAnalyticsData = {
-  overview: {
-    totalRevenue: 12450,
-    totalOrders: 156,
-    totalProducts: 24,
-    avgRating: 4.8,
-    growthRate: 12.5,
-    orderGrowth: 8.2,
-    productGrowth: 15.3,
-    ratingGrowth: 0.2,
-    commissionEarned: 1867.50,
-    netRevenue: 10582.50
-  },
-  salesData: {
-    daily: [
-      { date: "2024-01-15", revenue: 284, orders: 8 },
-      { date: "2024-01-16", revenue: 312, orders: 9 },
-      { date: "2024-01-17", revenue: 298, orders: 7 },
-      { date: "2024-01-18", revenue: 345, orders: 10 },
-      { date: "2024-01-19", revenue: 378, orders: 11 },
-      { date: "2024-01-20", revenue: 412, orders: 12 },
-      { date: "2024-01-21", revenue: 395, orders: 11 }
-    ],
-    monthly: [
-      { month: "Jan", revenue: 8900, orders: 245 },
-      { month: "Feb", revenue: 9200, orders: 258 },
-      { month: "Mar", revenue: 9800, orders: 272 },
-      { month: "Apr", revenue: 10500, orders: 289 },
-      { month: "May", revenue: 11200, orders: 308 },
-      { month: "Jun", revenue: 11800, orders: 325 }
-    ]
-  },
-  topProducts: [
-    { name: "Jollof Rice Spice Mix", revenue: 3036.66, sales: 234, rating: 4.8, growth: 15.2 },
-    { name: "Shea Butter Hair Care Set", revenue: 3898.44, sales: 156, rating: 4.9, growth: 22.1 },
-    { name: "Traditional Kente Cloth Scarf", revenue: 4049.55, sales: 45, rating: 4.7, growth: 8.5 },
-    { name: "Plantain Chips", revenue: 1606.50, sales: 189, rating: 4.6, growth: 12.4 },
-    { name: "Moringa Leaf Powder", revenue: 1665.00, sales: 90, rating: 4.5, growth: 18.3 }
-  ],
-  categoryPerformance: [
-    { name: "Food & Beverages", revenue: 5308.16, percentage: 42.6, growth: 12.4 },
-    { name: "Beauty & Personal Care", revenue: 3898.44, percentage: 31.3, growth: 18.7 },
-    { name: "Fashion & Clothing", revenue: 4049.55, percentage: 32.5, growth: 8.2 },
-    { name: "Health & Wellness", revenue: 1665.00, percentage: 13.4, growth: 22.1 }
-  ],
-  customerInsights: {
-    repeatCustomers: 67,
-    newCustomers: 89,
-    avgOrderValue: 79.81,
-    customerSatisfaction: 4.8,
-    topCustomerSegments: [
-      { segment: "Food Enthusiasts", percentage: 35, revenue: 4357.50 },
-      { segment: "Beauty & Wellness", percentage: 28, revenue: 3486.00 },
-      { segment: "Fashion Conscious", percentage: 22, revenue: 2739.00 },
-      { segment: "Health Conscious", percentage: 15, revenue: 1867.50 }
-    ]
-  },
-  commissionBreakdown: {
-    totalCommission: 1867.50,
-    commissionRate: 15,
-    breakdown: [
-      { category: "Food & Beverages", commission: 796.22, percentage: 42.6 },
-      { category: "Beauty & Personal Care", commission: 584.77, percentage: 31.3 },
-      { category: "Fashion & Clothing", commission: 607.43, percentage: 32.5 },
-      { category: "Health & Wellness", commission: 249.75, percentage: 13.4 }
-    ]
-  }
+type VendorAnalyticsOverview = {
+  totalRevenue: unknown;
+  totalOrders: number;
+  totalProducts: number;
+  averageRating: unknown;
 };
 
+type VendorAnalyticsOrder = {
+  id: string;
+  orderNumber?: string | null;
+  totalAmount?: unknown;
+  status?: string | null;
+  paymentStatus?: string | null;
+  createdAt: string;
+  customer?: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+  } | null;
+};
+
+type VendorAnalyticsProduct = {
+  id: string;
+  name: string;
+  price?: unknown;
+  status?: string | null;
+  _count?: {
+    orderItems?: number | null;
+  } | null;
+};
+
+type VendorAnalyticsApiResponse = {
+  success: boolean;
+  message?: string;
+  data?: {
+    period: string;
+    overview: VendorAnalyticsOverview;
+    recentOrders: VendorAnalyticsOrder[];
+    topProducts: VendorAnalyticsProduct[];
+  };
+};
+
+const toNumber = (value: unknown): number => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  if (value && typeof value === "object" && "toNumber" in value && typeof (value as any).toNumber === "function") {
+    return Number((value as any).toNumber());
+  }
+  return 0;
+};
+
+const formatCurrency = (amount: number) =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency: "GBP",
+    minimumFractionDigits: 2,
+  }).format(amount);
+
+const formatDate = (value: string) =>
+  new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+
 export function VendorAnalytics() {
-  const [timeRange, setTimeRange] = useState("7d");
-  const [isLoading, setIsLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [period, setPeriod] = useState("30d");
   const { toast } = useToast();
 
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useQuery({
+    queryKey: ["vendor-analytics", period],
+    queryFn: async () => {
+      const response = await apiFetch<VendorAnalyticsApiResponse>(`/analytics/vendor?period=${period}`);
+      if (!response.success || !response.data) {
+        throw new Error(response.message || "Failed to fetch analytics");
+      }
+      return response.data;
+    },
+    keepPreviousData: true,
+  });
+
+  const overview = data?.overview;
+  const totalRevenue = toNumber(overview?.totalRevenue);
+  const totalOrders = overview?.totalOrders ?? 0;
+  const totalProducts = overview?.totalProducts ?? 0;
+  const averageRatingRaw = toNumber(overview?.averageRating);
+  const averageRating = averageRatingRaw ? Number(averageRatingRaw.toFixed(2)) : 0;
+  const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  const topProducts = data?.topProducts ?? [];
+  const recentOrders = data?.recentOrders ?? [];
+
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [productsPage, setProductsPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setOrdersPage(1);
+    setProductsPage(1);
+  }, [period]);
+
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [recentOrders.length]);
+
+  useEffect(() => {
+    setProductsPage(1);
+  }, [topProducts.length]);
+
+  const ordersTotalPages = Math.max(1, Math.ceil(recentOrders.length / itemsPerPage));
+  const productsTotalPages = Math.max(1, Math.ceil(topProducts.length / itemsPerPage));
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(recentOrders.length / itemsPerPage));
+    if (ordersPage > maxPage) {
+      setOrdersPage(maxPage);
+    }
+  }, [recentOrders.length, ordersPage]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(topProducts.length / itemsPerPage));
+    if (productsPage > maxPage) {
+      setProductsPage(maxPage);
+    }
+  }, [topProducts.length, productsPage]);
+
+  const paginatedRecentOrders = useMemo(() => {
+    const start = (ordersPage - 1) * itemsPerPage;
+    return recentOrders.slice(start, start + itemsPerPage);
+  }, [recentOrders, ordersPage]);
+
+  const paginatedTopProducts = useMemo(() => {
+    const start = (productsPage - 1) * itemsPerPage;
+    return topProducts.slice(start, start + itemsPerPage);
+  }, [topProducts, productsPage]);
+
   const handleRefresh = async () => {
-    setIsLoading(true);
-    try {
-      // Mock API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      setRefreshKey(prev => prev + 1);
+    const result = await refetch();
+    if (result.error) {
       toast({
-        title: "Data Refreshed",
-        description: "Analytics data has been updated successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Refresh Failed",
-        description: "Failed to refresh analytics data. Please try again.",
+        title: "Refresh failed",
+        description: result.error.message ?? "Unable to refresh analytics right now.",
         variant: "destructive",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleExportReport = async (type: string) => {
-    try {
-      // Mock export
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    } else {
       toast({
-        title: "Export Successful",
-        description: `${type} report has been exported successfully.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Export Failed",
-        description: "Failed to export report. Please try again.",
-        variant: "destructive",
+        title: "Analytics updated",
+        description: "Latest vendor performance data has been loaded.",
       });
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP'
-    }).format(amount);
-  };
-
-  const getGrowthIcon = (growth: number) => {
-    return growth >= 0 ? (
-      <ArrowUpRight className="h-4 w-4 text-green-600" />
-    ) : (
-      <ArrowDownRight className="h-4 w-4 text-red-600" />
-    );
+  const handleExport = () => {
+    toast({
+      title: "Export coming soon",
+      description: "CSV and PDF exports will be available in a future update.",
+    });
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Analytics & Reports</h1>
-          <p className="text-muted-foreground">Comprehensive insights into your store performance</p>
+          <h1 className="text-3xl font-bold text-foreground">Vendor Analytics</h1>
+          <p className="text-muted-foreground">
+            Track revenue, orders, and product performance for the selected period.
+          </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Select value={timeRange} onValueChange={setTimeRange}>
+        <div className="flex items-center gap-2">
+          <Select value={period} onValueChange={setPeriod}>
             <SelectTrigger className="w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7d">Last 7 Days</SelectItem>
-              <SelectItem value="30d">Last 30 Days</SelectItem>
-              <SelectItem value="90d">Last 90 Days</SelectItem>
-              <SelectItem value="1y">Last Year</SelectItem>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+              <SelectItem value="1y">Last year</SelectItem>
             </SelectContent>
           </Select>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={handleRefresh}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            {isLoading ? "Refreshing..." : "Refresh"}
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isFetching}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Refreshing…" : "Refresh"}
           </Button>
-          <Button size="sm">
-            <Download className="h-4 w-4 mr-2" />
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
             Export
           </Button>
         </div>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {isError && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load analytics</AlertTitle>
+          <AlertDescription>{error instanceof Error ? error.message : "Please try again later."}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(vendorAnalyticsData.overview.totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              {getGrowthIcon(vendorAnalyticsData.overview.growthRate)}
-              +{vendorAnalyticsData.overview.growthRate}% from last month
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-28" />
+            ) : (
+              <div className="text-2xl font-bold text-foreground">{formatCurrency(totalRevenue)}</div>
+            )}
+            <p className="text-xs text-muted-foreground">Gross revenue generated in this period.</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Net Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(vendorAnalyticsData.overview.netRevenue)}</div>
-            <p className="text-xs text-muted-foreground">
-              After {vendorAnalyticsData.overview.commissionEarned} commission
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total orders</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vendorAnalyticsData.overview.totalOrders}</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              {getGrowthIcon(vendorAnalyticsData.overview.orderGrowth)}
-              +{vendorAnalyticsData.overview.orderGrowth}% from last month
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <div className="text-2xl font-bold text-foreground">{totalOrders.toLocaleString()}</div>
+            )}
+            <p className="text-xs text-muted-foreground">Completed orders attributed to your store.</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Rating</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Active products</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <Skeleton className="h-8 w-12" />
+            ) : (
+              <div className="text-2xl font-bold text-foreground">{totalProducts.toLocaleString()}</div>
+            )}
+            <p className="text-xs text-muted-foreground">Products listed during this reporting window.</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Average rating</CardTitle>
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{vendorAnalyticsData.overview.avgRating}/5.0</div>
-            <p className="text-xs text-muted-foreground flex items-center mt-1">
-              {getGrowthIcon(vendorAnalyticsData.overview.ratingGrowth)}
-              +{vendorAnalyticsData.overview.ratingGrowth} from last month
-            </p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <div className="text-2xl font-bold text-foreground">{averageRating.toFixed(2)} / 5</div>
+            )}
+            <p className="text-xs text-muted-foreground">Based on customer reviews collected to date.</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Analytics Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="sales">Sales</TabsTrigger>
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="customers">Customers</TabsTrigger>
-          <TabsTrigger value="commission">Commission</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Revenue Trend</CardTitle>
-                <CardDescription>Daily revenue performance</CardDescription>
+            <CardTitle>Recent orders</CardTitle>
+            <CardDescription>Latest orders placed within the selected period.</CardDescription>
               </CardHeader>
               <CardContent>
+            {isLoading ? (
                 <div className="space-y-3">
-                  {vendorAnalyticsData.salesData.daily.map((day, index) => (
-                    <div key={day.date} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{new Date(day.date).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                        <p className="text-sm text-muted-foreground">{day.orders} orders</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">{formatCurrency(day.revenue)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {index > 0 ? (
-                            <span className={day.revenue > vendorAnalyticsData.salesData.daily[index - 1].revenue ? 'text-green-600' : 'text-red-600'}>
-                              {day.revenue > vendorAnalyticsData.salesData.daily[index - 1].revenue ? '+' : ''}
-                              {((day.revenue - vendorAnalyticsData.salesData.daily[index - 1].revenue) / vendorAnalyticsData.salesData.daily[index - 1].revenue * 100).toFixed(1)}%
-                            </span>
-                          ) : null}
-                        </p>
-                      </div>
-                    </div>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Skeleton key={index} className="h-12 w-full rounded-md" />
                   ))}
                 </div>
+            ) : recentOrders.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No orders recorded for this period.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Order</TableHead>
+                      <TableHead>Customer</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Payment</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedRecentOrders.map((order) => {
+                      const total = formatCurrency(toNumber(order.totalAmount));
+                      const customerName =
+                        [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(" ") ||
+                        order.customer?.email ||
+                        "—";
+
+                      return (
+                        <TableRow key={order.id}>
+                          <TableCell>
+                            <div className="font-medium text-foreground">
+                              {order.orderNumber ?? order.id.slice(0, 8).toUpperCase()}
+                      </div>
+                            <div className="text-xs text-muted-foreground">{formatDate(order.createdAt)}</div>
+                          </TableCell>
+                          <TableCell className="text-sm text-foreground">{customerName}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {order.status?.toLowerCase() ?? "unknown"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary" className="capitalize">
+                              {order.paymentStatus?.toLowerCase() ?? "unknown"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-foreground">{total}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <Pagination
+                  currentPage={ordersPage}
+                  totalPages={ordersTotalPages}
+                  onPageChange={setOrdersPage}
+                  totalItems={recentOrders.length}
+                  itemsPerPage={itemsPerPage}
+                  className="px-0"
+                />
+              </div>
+            )}
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Category Performance</CardTitle>
-                <CardDescription>Revenue by product category</CardDescription>
+            <CardTitle>Top products</CardTitle>
+            <CardDescription>Products with the highest order volume this period.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {vendorAnalyticsData.categoryPerformance.map((category) => (
-                    <div key={category.name} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{category.name}</p>
-                        <p className="text-sm text-muted-foreground">{category.percentage}% of total revenue</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">{formatCurrency(category.revenue)}</p>
-                        <p className="text-sm text-green-600 flex items-center">
-                          {getGrowthIcon(category.growth)}
-                          +{category.growth}%
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Sales Tab */}
-        <TabsContent value="sales" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Monthly Sales</CardTitle>
-                <CardDescription>Revenue trends by month</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {vendorAnalyticsData.salesData.monthly.map((month, index) => (
-                    <div key={month.month} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{month.month}</p>
-                        <p className="text-sm text-muted-foreground">{month.orders.toLocaleString()} orders</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">{formatCurrency(month.revenue)}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {index > 0 ? (
-                            <span className={month.revenue > vendorAnalyticsData.salesData.monthly[index - 1].revenue ? 'text-green-600' : 'text-red-600'}>
-                              {month.revenue > vendorAnalyticsData.salesData.monthly[index - 1].revenue ? '+' : ''}
-                              {((month.revenue - vendorAnalyticsData.salesData.monthly[index - 1].revenue) / vendorAnalyticsData.salesData.monthly[index - 1].revenue * 100).toFixed(1)}%
-                            </span>
-                          ) : null}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Sales Insights</CardTitle>
-                <CardDescription>Key performance indicators</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Average Order Value</p>
-                      <p className="text-sm text-muted-foreground">Per customer order</p>
-                    </div>
-                    <p className="font-bold">{formatCurrency(vendorAnalyticsData.customerInsights.avgOrderValue)}</p>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Repeat Customers</p>
-                      <p className="text-sm text-muted-foreground">Loyal customer base</p>
-                    </div>
-                    <p className="font-bold">{vendorAnalyticsData.customerInsights.repeatCustomers}</p>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">New Customers</p>
-                      <p className="text-sm text-muted-foreground">This period</p>
-                    </div>
-                    <p className="font-bold">{vendorAnalyticsData.customerInsights.newCustomers}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Products Tab */}
-        <TabsContent value="products" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Performing Products</CardTitle>
-              <CardDescription>Your best-selling products this period</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {vendorAnalyticsData.topProducts.map((product, index) => (
-                  <div key={product.name} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-bold text-orange-600">{index + 1}</span>
-                      </div>
-                      <div>
-                        <p className="font-medium">{product.name}</p>
-                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                          <span>{product.sales} sales</span>
-                          <span className="flex items-center">
-                            <Star className="h-3 w-3 mr-1 fill-current" />
-                            {product.rating}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold">{formatCurrency(product.revenue)}</p>
-                      <p className="text-sm text-green-600 flex items-center">
-                        {getGrowthIcon(product.growth)}
-                        +{product.growth}%
-                      </p>
-                    </div>
-                  </div>
+            {isLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <Skeleton key={index} className="h-12 w-full rounded-md" />
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            ) : topProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No product sales recorded for this period.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead className="text-right">Orders</TableHead>
+                      <TableHead className="text-right">Price</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedTopProducts.map((product) => {
+                      const ordersCount = product._count?.orderItems ?? 0;
+                      const price = product.price !== undefined ? formatCurrency(toNumber(product.price)) : "—";
 
-        {/* Customers Tab */}
-        <TabsContent value="customers" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Segments</CardTitle>
-                <CardDescription>Revenue by customer type</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {vendorAnalyticsData.customerInsights.topCustomerSegments.map((segment) => (
-                    <div key={segment.segment} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{segment.segment}</p>
-                        <p className="text-sm text-muted-foreground">{segment.percentage}% of customers</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold">{formatCurrency(segment.revenue)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Customer Satisfaction</CardTitle>
-                <CardDescription>Overall customer experience</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Overall Rating</p>
-                      <p className="text-sm text-muted-foreground">Average customer rating</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold">{vendorAnalyticsData.customerInsights.customerSatisfaction}/5.0</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Repeat Purchase Rate</p>
-                      <p className="text-sm text-muted-foreground">Customer loyalty</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold">{Math.round((vendorAnalyticsData.customerInsights.repeatCustomers / (vendorAnalyticsData.customerInsights.repeatCustomers + vendorAnalyticsData.customerInsights.newCustomers)) * 100)}%</p>
-                    </div>
-                  </div>
-                </div>
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell>
+                            <div className="font-medium text-foreground">{product.name}</div>
+                            {product.status && (
+                              <span className="text-xs text-muted-foreground capitalize">{product.status.toLowerCase()}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right text-sm font-medium text-foreground">
+                            {ordersCount}
+                          </TableCell>
+                          <TableCell className="text-right text-sm text-muted-foreground">{price}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+                <Pagination
+                  currentPage={productsPage}
+                  totalPages={productsTotalPages}
+                  onPageChange={setProductsPage}
+                  totalItems={topProducts.length}
+                  itemsPerPage={itemsPerPage}
+                  className="px-0"
+                />
+              </div>
+            )}
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        {/* Commission Tab */}
-        <TabsContent value="commission" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Commission Overview</CardTitle>
-                <CardDescription>Platform commission breakdown</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Total Commission</p>
-                      <p className="text-sm text-muted-foreground">Platform fees</p>
-                    </div>
-                    <p className="font-bold text-red-600">{formatCurrency(vendorAnalyticsData.commissionBreakdown.totalCommission)}</p>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Commission Rate</p>
-                      <p className="text-sm text-muted-foreground">Platform percentage</p>
-                    </div>
-                    <p className="font-bold">{vendorAnalyticsData.commissionBreakdown.commissionRate}%</p>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                    <div>
-                      <p className="font-medium">Net Revenue</p>
-                      <p className="text-sm text-muted-foreground">After commission</p>
-                    </div>
-                    <p className="font-bold text-green-600">{formatCurrency(vendorAnalyticsData.overview.netRevenue)}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Commission by Category</CardTitle>
-                <CardDescription>Commission breakdown by product category</CardDescription>
+          <CardTitle>Snapshot</CardTitle>
+          <CardDescription>Derived insights based on the current reporting window.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {vendorAnalyticsData.commissionBreakdown.breakdown.map((item) => (
-                    <div key={item.category} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <div>
-                        <p className="font-medium">{item.category}</p>
-                        <p className="text-sm text-muted-foreground">{item.percentage}% of commission</p>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-lg border border-dashed p-4">
+            <p className="text-sm text-muted-foreground">Average order value</p>
+            {isLoading ? (
+              <Skeleton className="mt-2 h-6 w-24" />
+            ) : (
+              <p className="mt-2 text-xl font-semibold text-foreground">{formatCurrency(averageOrderValue || 0)}</p>
+            )}
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-red-600">{formatCurrency(item.commission)}</p>
+          <div className="rounded-lg border border-dashed p-4">
+            <p className="text-sm text-muted-foreground">Orders per product</p>
+            {isLoading ? (
+              <Skeleton className="mt-2 h-6 w-20" />
+            ) : (
+              <p className="mt-2 text-xl font-semibold text-foreground">
+                {totalProducts > 0 ? (totalOrders / totalProducts).toFixed(2) : "0.00"}
+              </p>
+            )}
                       </div>
-                    </div>
-                  ))}
+          <div className="rounded-lg border border-dashed p-4">
+            <p className="text-sm text-muted-foreground">Reporting period</p>
+            <p className="mt-2 text-xl font-semibold capitalize text-foreground">{period}</p>
+            <p className="text-xs text-muted-foreground">
+              Calculated using data between {period === "7d" ? "the last week" : `the last ${period}`}.
+            </p>
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
     </div>
   );
 }
+
+export default VendorAnalytics;
 

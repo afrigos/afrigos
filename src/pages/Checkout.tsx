@@ -20,6 +20,13 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 
 type CheckoutStep = 'address' | 'review' | 'payment';
 
+const formatCurrency = (amount: number, currency: string = 'GBP') =>
+  new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+
 export default function Checkout() {
   const navigate = useNavigate();
   const { items, getCartTotal, clearCart } = useCart();
@@ -68,12 +75,17 @@ export default function Checkout() {
   }, [isAuthenticated, items.length, navigate, user]);
 
   const subtotal = getCartTotal();
-  const shipping = subtotal > 50 ? 0 : 5.99;
-  const total = subtotal + shipping;
+  const shippingCost = 0;
+  const shippingCurrency = 'GBP';
+  const total = subtotal + shippingCost;
 
   const handleAddressSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentStep('review');
+  };
+
+  const handleEditAddress = () => {
+    setCurrentStep('address');
   };
 
   // Create order when moving to payment step
@@ -104,8 +116,9 @@ export default function Checkout() {
           country: address.country,
         },
         paymentMethod,
-        totalAmount: total,
-        shippingCost: shipping,
+        totalAmount: subtotal + shippingCost,
+        shippingCost,
+        shippingMethod: 'vendor_handled',
       };
 
       const orderResponse = await apiFetch<{ success: boolean; data: { id: string; orderNumber: string } }>('/orders', {
@@ -137,10 +150,11 @@ export default function Checkout() {
           throw new Error('Failed to create payment intent');
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to initialize payment. Please try again.";
       toast({
         title: "Error",
-        description: error.message || "Failed to initialize payment. Please try again.",
+        description: message,
         variant: "destructive",
       });
       setCurrentStep('review');
@@ -151,7 +165,6 @@ export default function Checkout() {
 
   const handlePlaceOrder = async () => {
     if (paymentMethod === 'bank') {
-      // For bank transfer, just create the order
       setIsSubmitting(true);
       try {
         const orderData = {
@@ -170,8 +183,9 @@ export default function Checkout() {
             country: address.country,
           },
           paymentMethod,
-          totalAmount: total,
-          shippingCost: shipping,
+          totalAmount: subtotal + shippingCost,
+          shippingCost,
+          shippingMethod: 'vendor_handled',
         };
 
         const response = await apiFetch<{ success: boolean; data: { id: string; orderNumber: string } }>('/orders', {
@@ -183,17 +197,17 @@ export default function Checkout() {
           clearCart();
           navigate(`/order/${response.data.id}/confirmation`);
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to place order. Please try again.";
         toast({
           title: "Order Failed",
-          description: error.message || "Failed to place order. Please try again.",
+          description: message,
           variant: "destructive",
         });
       } finally {
         setIsSubmitting(false);
       }
     } else {
-      // For card payment, move to payment step
       setCurrentStep('payment');
     }
   };
@@ -386,10 +400,25 @@ export default function Checkout() {
                     <Button
                       variant="link"
                       className="p-0 mt-2"
-                      onClick={() => setCurrentStep('address')}
+                      onClick={handleEditAddress}
                     >
                       Edit Address
                     </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Shipping</CardTitle>
+                    <CardDescription>Delivery cost and estimate</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Shipping Cost</span>
+                      <span className="font-medium">
+                        Vendor will confirm after checkout
+                      </span>
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -431,7 +460,7 @@ export default function Checkout() {
                 <div className="flex gap-4">
                   <Button
                     variant="outline"
-                    onClick={() => setCurrentStep('address')}
+                    onClick={handleEditAddress}
                     className="flex-1"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" />
@@ -541,24 +570,21 @@ export default function Checkout() {
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>£{subtotal.toFixed(2)}</span>
+                    <span>{formatCurrency(subtotal, 'GBP')}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm items-center">
                     <span className="text-muted-foreground">Shipping</span>
                     <span>
-                      {shipping === 0 ? (
-                        <Badge variant="secondary" className="bg-green-100 text-green-800">
-                          FREE
-                        </Badge>
-                      ) : (
-                        `£${shipping.toFixed(2)}`
-                      )}
+                      Vendor will confirm after checkout
                     </span>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Shipping is arranged directly with the vendor after checkout.
+                  </p>
                   <div className="border-t pt-4">
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
-                      <span className="text-primary">£{total.toFixed(2)}</span>
+                      <span className="text-primary">{formatCurrency(total, shippingCurrency)}</span>
                     </div>
                   </div>
                 </div>

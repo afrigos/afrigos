@@ -1,10 +1,88 @@
 import { Router } from 'express';
-import { PrismaClient, NotificationType } from '@prisma/client';
+import { PrismaClient, NotificationType, Prisma } from '@prisma/client';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+const productSummaryInclude = {
+  vendor: {
+    include: {
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      }
+    }
+  },
+  category: true,
+  reviews: {
+    select: {
+      rating: true
+    }
+  },
+  orderItems: {
+    select: {
+      quantity: true,
+      total: true
+    }
+  }
+} satisfies Prisma.ProductInclude;
+
+type ProductSummary = Prisma.ProductGetPayload<{ include: typeof productSummaryInclude }>;
+
+const productDetailInclude = {
+  vendor: {
+    include: {
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      }
+    }
+  },
+  category: true,
+  reviews: {
+    select: {
+      rating: true,
+      comment: true,
+      createdAt: true
+    }
+  },
+  orderItems: {
+    select: {
+      quantity: true,
+      total: true,
+      order: {
+        select: { createdAt: true }
+      }
+    }
+  }
+} satisfies Prisma.ProductInclude;
+
+type ProductDetail = Prisma.ProductGetPayload<{ include: typeof productDetailInclude }>;
+
+const productStatusInclude = {
+  vendor: {
+    include: {
+      user: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      }
+    }
+  },
+  category: true
+} satisfies Prisma.ProductInclude;
+
+type ProductStatusPayload = Prisma.ProductGetPayload<{ include: typeof productStatusInclude }>;
 
 // @desc    Get all products for admin approval
 // @route   GET /api/v1/admin/products
@@ -38,33 +116,7 @@ router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
     // Get products with pagination
     const products = await prisma.product.findMany({
       where,
-      include: {
-        vendor: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          }
-        },
-        category: {
-          select: { name: true }
-        },
-        reviews: {
-          select: {
-            rating: true
-          }
-        },
-        orderItems: {
-          select: {
-            quantity: true,
-            total: true
-          }
-        }
-      },
+      include: productSummaryInclude,
       skip: (parseInt(page as string) - 1) * parseInt(limit as string),
       take: parseInt(limit as string),
       orderBy: { createdAt: 'desc' }
@@ -74,12 +126,14 @@ router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
     const total = await prisma.product.count({ where });
 
     // Calculate stats for each product
-    const productsWithStats = products.map((product: any) => {
-      const totalSales = product.orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
-      const totalRevenue = product.orderItems.reduce((sum: number, item: any) => sum + Number(item.total), 0);
+    const productsWithStats = products.map((product: ProductSummary) => {
+      const totalSales = product.orderItems.reduce((sum, item) => sum + item.quantity, 0);
+      const totalRevenue = product.orderItems.reduce((sum, item) => sum + Number(item.total), 0);
       const avgRating = product.reviews.length > 0 
-        ? product.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / product.reviews.length 
+        ? product.reviews.reduce((sum, review) => sum + review.rating, 0) / product.reviews.length 
         : 0;
+      const category = (product.category as any) || null;
+      const commissionRateValue = (product as any).commissionRate ?? null;
 
       return {
         id: product.id,
@@ -92,7 +146,14 @@ router.get('/', authenticate, requireAdmin, async (req: any, res: any) => {
         status: product.status,
         sourcing: product.sourcing,
         images: product.images,
-        category: product.category,
+        category: category
+          ? {
+              id: category.id,
+              name: category.name,
+              commissionRate: category.commissionRate ? Number(category.commissionRate) : null
+            }
+          : null,
+        commissionRate: commissionRateValue ? Number(commissionRateValue) : null,
         vendor: {
           id: product.vendor.id,
           businessName: product.vendor.businessName,
@@ -137,38 +198,7 @@ router.get('/:id', authenticate, requireAdmin, async (req: any, res: any) => {
 
     const product = await prisma.product.findUnique({
       where: { id },
-      include: {
-        vendor: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          }
-        },
-        category: {
-          select: { name: true }
-        },
-        reviews: {
-          select: {
-            rating: true,
-            comment: true,
-            createdAt: true
-          }
-        },
-        orderItems: {
-          select: {
-            quantity: true,
-            total: true,
-            order: {
-              select: { createdAt: true }
-            }
-          }
-        }
-      }
+      include: productDetailInclude
     });
 
     if (!product) {
@@ -179,10 +209,10 @@ router.get('/:id', authenticate, requireAdmin, async (req: any, res: any) => {
     }
 
     // Calculate stats
-    const totalSales = product.orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0);
-    const totalRevenue = product.orderItems.reduce((sum: number, item: any) => sum + Number(item.total), 0);
+    const totalSales = product.orderItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalRevenue = product.orderItems.reduce((sum, item) => sum + Number(item.total), 0);
     const avgRating = product.reviews.length > 0 
-      ? product.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / product.reviews.length 
+      ? product.reviews.reduce((sum, review) => sum + review.rating, 0) / product.reviews.length 
       : 0;
 
     res.json({
@@ -191,7 +221,18 @@ router.get('/:id', authenticate, requireAdmin, async (req: any, res: any) => {
         ...product,
         price: Number(product.price),
         comparePrice: product.comparePrice ? Number(product.comparePrice) : null,
-        category: product.category,
+        commissionRate: (product as any)?.commissionRate
+          ? Number((product as any).commissionRate)
+          : null,
+        category: (product.category as any)
+          ? {
+              id: (product.category as any).id,
+              name: (product.category as any).name,
+              commissionRate: (product.category as any).commissionRate
+                ? Number((product.category as any).commissionRate)
+                : null
+            }
+          : null,
         vendor: {
           id: product.vendor.id,
           businessName: product.vendor.businessName,
@@ -235,19 +276,7 @@ router.put('/:id/status', authenticate, requireAdmin, [
     // Check if product exists
     const product = await prisma.product.findUnique({
       where: { id },
-      include: {
-        vendor: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          }
-        }
-      }
+      include: productStatusInclude
     });
 
     if (!product) {
@@ -279,22 +308,7 @@ router.put('/:id/status', authenticate, requireAdmin, [
     const updatedProduct = await prisma.product.update({
       where: { id },
       data: updateData,
-      include: {
-        vendor: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            }
-          }
-        },
-        category: {
-          select: { name: true }
-        }
-      }
+      include: productStatusInclude
     });
 
     // Create notification for vendor
@@ -334,7 +348,15 @@ router.put('/:id/status', authenticate, requireAdmin, [
         ...updatedProduct,
         price: Number(updatedProduct.price),
         comparePrice: updatedProduct.comparePrice ? Number(updatedProduct.comparePrice) : null,
-        category: updatedProduct.category?.name || 'Uncategorized',
+        category: (updatedProduct.category as any)
+          ? {
+              id: (updatedProduct.category as any).id,
+              name: (updatedProduct.category as any).name,
+              commissionRate: (updatedProduct.category as any).commissionRate
+                ? Number((updatedProduct.category as any).commissionRate)
+                : null
+            }
+          : null,
         vendor: {
           id: updatedProduct.vendor.id,
           businessName: updatedProduct.vendor.businessName,
@@ -347,6 +369,84 @@ router.put('/:id/status', authenticate, requireAdmin, [
     res.status(500).json({
       success: false,
       message: 'Failed to update product status'
+    });
+  }
+});
+
+// @desc    Update product commission rate
+// @route   PUT /api/v1/admin/products/:id/commission
+// @access  Private (Admin)
+router.put('/:id/commission', authenticate, requireAdmin, [
+  body('commissionRate')
+    .optional({ values: 'null' })
+    .custom((value) => value === null || (typeof value === 'number' && value >= 0 && value <= 100))
+    .withMessage('Commission rate must be between 0 and 100')
+], async (req: any, res: any) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+    const { commissionRate } = req.body;
+
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true }
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found'
+      });
+    }
+
+    const updatedProduct = await prisma.product.update({
+      where: { id },
+      data: {
+        commissionRate: commissionRate === null || commissionRate === undefined
+          ? null
+          : new Prisma.Decimal(commissionRate)
+      } as any,
+      include: {
+        vendor: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          }
+        },
+        category: true
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Commission rate updated successfully',
+      data: {
+        ...updatedProduct,
+        price: Number(updatedProduct.price),
+        comparePrice: updatedProduct.comparePrice ? Number(updatedProduct.comparePrice) : null,
+        commissionRate: (updatedProduct as any)?.commissionRate
+          ? Number((updatedProduct as any).commissionRate)
+          : null
+      }
+    });
+  } catch (error) {
+    console.error('Update product commission error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update product commission rate'
     });
   }
 });

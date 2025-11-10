@@ -448,7 +448,7 @@ export default function OrderTracking() {
               <Button 
                 variant="outline" 
                 className="w-full"
-                onClick={() => window.location.href = 'mailto:support@afrigos.com'}
+                onClick={() => window.location.href = 'mailto:enquiries@afrigos.com'}
               >
                 <Mail className="h-4 w-4 mr-2" />
                 Contact Support

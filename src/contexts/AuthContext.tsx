@@ -82,8 +82,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: result.data.email,
             name: `${result.data.firstName || ''} ${result.data.lastName || ''}`.trim() || result.data.email,
             role: result.data.role.toLowerCase() as 'admin' | 'vendor' | 'customer',
-            vendorId: result.data.vendorId,
-            vendorName: result.data.vendorName,
+            vendorId: result.data.vendorId || result.data.vendorProfile?.id || result.data.vendorProfileId,
+            vendorName: result.data.vendorName || result.data.vendorProfile?.businessName,
             isActive: result.data.isActive,
             isVerified: result.data.isVerified,
           };

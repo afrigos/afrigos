@@ -1,12 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  TrendingUp, 
-  Users, 
-  Package, 
-  DollarSign, 
-  AlertCircle,
+import {
+  TrendingUp,
+  Users,
+  Package,
+  DollarSign,
   CheckCircle,
   Clock,
   Eye,
@@ -18,41 +17,21 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api-client";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const kpiCards = [
-  {
-    title: "Total Revenue",
-    value: "£284,590",
-    change: "+12.5%",
-    trend: "up",
-    description: "from last month",
-    icon: DollarSign
-  },
-  {
-    title: "Active Vendors",
-    value: "1,247",
-    change: "+8.2%",
-    trend: "up", 
-    description: "from last month",
-    icon: Users
-  },
-  {
-    title: "Products Listed",
-    value: "12,847",
-    change: "+15.3%",
-    trend: "up",
-    description: "from last month", 
-    icon: Package
-  },
-  {
-    title: "Customer Orders",
-    value: "8,942",
-    change: "+6.7%",
-    trend: "up",
-    description: "this month",
-    icon: TrendingUp
-  }
-];
+type DashboardOverviewResponse = {
+  overview: {
+    totalUsers: number;
+    totalVendors: number;
+    activeVendors: number;
+    productsListed: number;
+    totalOrders: number;
+    totalRevenue: number | string;
+  };
+  recentOrders: any[];
+  topProducts: any[];
+  vendorStats: any[];
+};
 
 // Fetch recent vendors
 const fetchRecentVendors = async () => {
@@ -123,11 +102,67 @@ const fetchPendingTasks = async () => {
   return tasks;
 };
 
+const fetchDashboardOverview = async () => {
+  const response = await apiFetch<{ success: boolean; data: DashboardOverviewResponse }>('/admin/dashboard');
+
+  if (!response.success || !response.data) {
+    throw new Error('Failed to load dashboard overview');
+  }
+
+  return response.data;
+};
+
+const normalizeNumber = (value: unknown) => {
+  if (value === null || value === undefined) {
+    return 0;
+  }
+
+  if (typeof value === 'object' && value !== null && 'toNumber' in value && typeof (value as any).toNumber === 'function') {
+    return (value as any).toNumber();
+  }
+
+  if (typeof value === 'string') {
+    const asNumber = parseFloat(value);
+    return Number.isFinite(asNumber) ? asNumber : 0;
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  return 0;
+};
+
+const formatCurrency = (value: number | string | null | undefined | unknown) => {
+  const amount = normalizeNumber(value);
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP',
+    minimumFractionDigits: 2,
+  }).format(amount);
+};
+
+const formatNumber = (value: number | string | null | undefined | unknown) => {
+  const numeric = normalizeNumber(value);
+  return new Intl.NumberFormat('en-GB').format(Math.max(0, numeric));
+};
+
 export function DashboardOverview() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [isExporting, setIsExporting] = useState(false);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+
+  // Fetch dashboard overview metrics
+  const {
+    data: dashboardOverview,
+    isLoading: loadingDashboard,
+    isError: dashboardError
+  } = useQuery({
+    queryKey: ['admin-dashboard-overview'],
+    queryFn: fetchDashboardOverview,
+    refetchInterval: 30000
+  });
 
   // Fetch recent vendors
   const { data: recentVendors = [], isLoading: loadingVendors } = useQuery({
@@ -212,6 +247,33 @@ export function DashboardOverview() {
     }
   };
 
+  const overviewCards = [
+    {
+      title: "Total Revenue",
+      value: dashboardOverview ? formatCurrency(dashboardOverview.overview.totalRevenue) : null,
+      description: "Completed payments",
+      icon: DollarSign
+    },
+    {
+      title: "Active Vendors",
+      value: dashboardOverview ? formatNumber(dashboardOverview.overview.activeVendors) : null,
+      description: "Verified vendors currently selling",
+      icon: Users
+    },
+    {
+      title: "Products Listed",
+      value: dashboardOverview ? formatNumber(dashboardOverview.overview.productsListed) : null,
+      description: "Live and approved listings",
+      icon: Package
+    },
+    {
+      title: "Customer Orders",
+      value: dashboardOverview ? formatNumber(dashboardOverview.overview.totalOrders) : null,
+      description: "All-time orders placed",
+      icon: TrendingUp
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -241,7 +303,7 @@ export function DashboardOverview() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {kpiCards.map((kpi) => (
+        {overviewCards.map((kpi) => (
           <Card key={kpi.title} className="border-0 shadow-sm bg-card/50 backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -250,11 +312,22 @@ export function DashboardOverview() {
               <kpi.icon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">{kpi.value}</div>
-              <div className="flex items-center space-x-1">
-                <span className="text-sm text-success font-medium">{kpi.change}</span>
-                <span className="text-sm text-muted-foreground">{kpi.description}</span>
-              </div>
+              {loadingDashboard ? (
+                <div className="space-y-3">
+                  <Skeleton className="h-8 w-28" />
+                  <Skeleton className="h-4 w-24" />
+                </div>
+              ) : dashboardError ? (
+                <div className="space-y-2">
+                  <p className="text-sm text-destructive">Unable to load</p>
+                  <p className="text-xs text-muted-foreground">Refresh to try again.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold text-foreground">{kpi.value}</div>
+                  <div className="text-sm text-muted-foreground">{kpi.description}</div>
+                </>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -428,4 +501,5 @@ export function DashboardOverview() {
       </Card>
     </div>
   );
-}
+} 
+export default DashboardOverview;

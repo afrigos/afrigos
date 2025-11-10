@@ -5,6 +5,80 @@ import { authenticate, requireVendor } from '../middleware/auth';
 const router = Router();
 const prisma = new PrismaClient();
 
+const DEFAULT_COMMISSION_PERCENT = 10;
+const DEFAULT_COMMISSION_RATE = DEFAULT_COMMISSION_PERCENT / 100;
+
+const createEmptyDashboardData = () => ({
+  overview: {
+    totalRevenue: 0,
+    totalOrders: 0,
+    totalProducts: 0,
+    avgRating: 0,
+    growthRate: 0,
+    orderGrowth: 0,
+    productGrowth: 0,
+    ratingGrowth: 0
+  },
+  recentOrders: [],
+  topProducts: [],
+  orderStatuses: {}
+});
+
+const createEmptyAnalyticsData = () => ({
+  overview: {
+    totalRevenue: 0,
+    netRevenue: 0,
+    totalOrders: 0,
+    avgRating: 0,
+    revenueGrowth: 0,
+    orderGrowth: 0,
+    repeatCustomers: 0,
+    newCustomers: 0
+  },
+  sales: {
+    daily: [],
+    monthly: []
+  },
+  topProducts: [],
+  categoryPerformance: [],
+  customerInsights: {
+    repeatCustomers: 0,
+    newCustomers: 0,
+    avgOrderValue: 0,
+    customerSatisfaction: 0,
+    topCustomerSegments: []
+  },
+  commission: {
+    totalCommission: 0,
+    effectiveRate: DEFAULT_COMMISSION_PERCENT,
+    breakdown: []
+  }
+});
+
+async function getOrCreateVendorProfile(user: any) {
+  const existingProfile = await prisma.vendorProfile.findUnique({
+    where: { userId: user.id }
+  });
+
+  if (existingProfile) {
+    return { profile: existingProfile, newlyCreated: false };
+  }
+
+  const safeFirstName = user.firstName?.trim() || 'Vendor';
+  const safeLastName = user.lastName?.trim() || 'User';
+
+  const newProfile = await prisma.vendorProfile.create({
+    data: {
+      userId: user.id,
+      businessName: `${safeFirstName} ${safeLastName}'s Store`,
+      businessType: 'Individual',
+      description: 'New vendor on AfriGos platform'
+    }
+  });
+
+  return { profile: newProfile, newlyCreated: true };
+}
+
 // Get vendor dashboard data
 router.get('/dashboard', authenticate, requireVendor, async (req: any, res: any) => {
   try {

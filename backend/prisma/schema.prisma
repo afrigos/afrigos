@@ -85,6 +85,7 @@ model Category {
   image       String?
   type        CategoryType @default(AugmentableProduct)
   isActive    Boolean     @default(true)
+  commissionRate Decimal? @db.Decimal(5, 2)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
@@ -109,6 +110,7 @@ model Product {
   isFeatured  Boolean  @default(false)
   status      ProductStatus @default(DRAFT)
   rejectionReason String? // Reason for rejection (if rejected)
+  commissionRate Decimal? @db.Decimal(5, 2)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

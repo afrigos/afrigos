@@ -130,7 +130,16 @@ router.get('/', async (req: any, res: any) => {
               select: {
                 id: true,
                 name: true,
-                images: true
+                images: true,
+                price: true,
+                commissionRate: true,
+                category: {
+                  select: {
+                    id: true,
+                    name: true,
+                    commissionRate: true
+                  }
+                }
               }
             }
           }
@@ -249,6 +258,8 @@ router.get('/:id', async (req: any, res: any) => {
 // @desc    Create order
 // @route   POST /api/v1/orders
 // @access  Private (Customer)
+const ALLOWED_ORDER_STATUSES = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
+
 router.post('/', [
   body('items').isArray({ min: 1 }),
   body('shippingAddress').isObject(),
@@ -264,7 +275,7 @@ router.post('/', [
       });
     }
 
-    const { items, shippingAddress, billingAddress, notes, paymentMethod, totalAmount, shippingCost } = req.body;
+    const { items, shippingAddress, billingAddress, notes, paymentMethod, totalAmount, shippingCost, shippingMethod } = req.body;
 
     // Generate order number
     const orderNumber = `AFG-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -313,9 +324,23 @@ router.post('/', [
     // In future, we can create separate orders per vendor
     const vendorId = Array.from(vendorIds)[0];
     
-    // Use provided totals or calculate
-    const finalTotalAmount = totalAmount || orderItems.reduce((sum, item) => sum + Number(item.total), 0);
-    const finalShippingCost = shippingCost || 0;
+    const itemsSubtotal = orderItems.reduce((sum, item) => sum + Number(item.total), 0);
+    const providedTotal = typeof totalAmount === 'number' ? Number(totalAmount) : null;
+    const providedShipping = typeof shippingCost === 'number' ? Number(shippingCost) : null;
+    const finalShippingCost = providedShipping && providedShipping > 0 ? providedShipping : 0;
+    let calculatedSubtotal = providedTotal !== null ? providedTotal - finalShippingCost : itemsSubtotal;
+
+    if (calculatedSubtotal < 0) {
+      calculatedSubtotal = itemsSubtotal;
+    }
+
+    const finalOrderTotal = calculatedSubtotal + finalShippingCost;
+
+    const vendorShippingNote = shippingMethod === 'vendor_handled'
+      ? 'Shipping handled directly by vendor.'
+      : null;
+
+    const combinedNotes = [notes, vendorShippingNote].filter(Boolean).join('\n') || undefined;
 
     // Create order
     const order = await prisma.order.create({
@@ -323,11 +348,11 @@ router.post('/', [
         orderNumber,
         customerId: req.user.id,
         vendorId,
-        totalAmount: finalTotalAmount + finalShippingCost,
+        totalAmount: finalOrderTotal,
         shippingCost: finalShippingCost,
         shippingAddress,
         billingAddress: billingAddress || shippingAddress,
-        notes,
+        notes: combinedNotes,
         paymentMethod,
         status: 'PENDING',
         paymentStatus: 'PENDING'
@@ -408,6 +433,85 @@ router.post('/', [
     res.status(500).json({
       success: false,
       message: 'Failed to create order'
+    });
+  }
+});
+ 
+
+router.patch('/:id/status', [
+  body('status')
+    .isString()
+    .custom((value) => ALLOWED_ORDER_STATUSES.includes(value))
+], async (req: any, res: any) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        vendorId: true,
+        customerId: true,
+        status: true,
+        paymentStatus: true
+      }
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: 'Order not found'
+      });
+    }
+
+    if (req.user.role === 'VENDOR' && order.vendorId !== req.user.vendorId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    if (req.user.role === 'CUSTOMER' && order.customerId !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    const updatedOrder = await prisma.order.update({
+      where: { id },
+      data: {
+        status
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        paymentStatus: true,
+        updatedAt: true
+      }
+    });
+
+    res.json({
+      success: true,
+      message: 'Order status updated',
+      data: updatedOrder
+    });
+  } catch (error) {
+    console.error('Update order status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update order status'
     });
   }
 });

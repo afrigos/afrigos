@@ -259,7 +259,7 @@ export default function Terms() {
                 If you have any questions about these Terms, please contact us:
               </p>
               <p>
-                <strong>Email:</strong> support@afrigos.com<br />
+                <strong>Email:</strong> enquiries@afrigos.com<br />
                 <strong>Address:</strong> 216-218 slack lane, DE22 3EE, United Kingdom
               </p>
             </CardContent>

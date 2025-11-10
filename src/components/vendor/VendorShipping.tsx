@@ -1,1004 +1,895 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { format } from "date-fns";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { 
+import { Input } from "@/components/ui/input";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+  } from "@/components/ui/table";
+  import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+  } from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { 
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Truck, 
-  MapPin, 
-  Package, 
-  Clock, 
-  DollarSign,
-  Plus,
-  Edit,
-  Trash2,
-  Download,
-  Eye,
+import {
+  Truck,
+  Clock,
   CheckCircle,
+  Package,
   AlertTriangle,
   RefreshCw,
   Search,
-  Filter,
-  Settings,
-  Globe,
-  Calculator,
-  FileText,
   Mail,
   Phone,
-  Home,
-  Building,
-  Navigation,
-  Weight,
-  Ruler,
-  CreditCard,
-  Shield,
-  Zap,
-  TrendingUp,
-  BarChart3,
-  Calendar,
-  User,
-  Target,
-  Activity,
-  ArrowRight,
-  ArrowLeft,
-  ArrowUp,
-  ArrowDown,
-  Info,
-  Star,
-  Heart,
-  Flag,
-  Lock,
-  Unlock,
-  Copy,
-  Share,
-  Send,
-  Archive,
-  Bookmark,
-  Bell,
-  MessageSquare,
-  HelpCircle,
-  ExternalLink,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Check,
-  AlertCircle,
-  Loader2
+  MapPin,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/api-client";
+import { Pagination } from "@/components/ui/pagination";
 
-// Mock comprehensive shipping data
-const shippingData = {
-  overview: {
-    totalShipments: 1247,
-    pendingShipments: 45,
-    inTransit: 123,
-    delivered: 1067,
-    failedDeliveries: 12,
-    avgDeliveryTime: "3.2 days",
-    onTimeDelivery: 96.8,
-    shippingRevenue: 15670.50,
-    shippingCosts: 8920.30,
-    netShippingProfit: 6750.20,
-    topShippingMethod: "Standard Ground",
-    avgShippingCost: 7.15,
-    returnRate: 2.1
-  },
-  shippingMethods: [
-    {
-      id: "standard",
-      name: "Standard Ground",
-      description: "Regular shipping within 3-5 business days",
-      baseRate: 5.99,
-      freeThreshold: 75.00,
-      estimatedDays: "3-5",
-      zones: ["Domestic"],
-      isActive: true,
-      usage: 67.5,
-      avgDeliveryTime: "3.2 days"
-    },
-    {
-      id: "expedited",
-      name: "Expedited",
-      description: "Faster shipping within 1-2 business days",
-      baseRate: 12.99,
-      freeThreshold: 150.00,
-      estimatedDays: "1-2",
-      zones: ["Domestic"],
-      isActive: true,
-      usage: 22.3,
-      avgDeliveryTime: "1.8 days"
-    },
-    {
-      id: "overnight",
-      name: "Overnight",
-      description: "Next business day delivery",
-      baseRate: 24.99,
-      freeThreshold: 300.00,
-      estimatedDays: "1",
-      zones: ["Domestic"],
-      isActive: true,
-      usage: 8.7,
-      avgDeliveryTime: "1.0 days"
-    },
-    {
-      id: "international",
-      name: "International",
-      description: "International shipping 7-14 business days",
-      baseRate: 29.99,
-      freeThreshold: 500.00,
-      estimatedDays: "7-14",
-      zones: ["International"],
-      isActive: true,
-      usage: 1.5,
-      avgDeliveryTime: "10.5 days"
+const SHIPMENT_STATUS_CONFIG = {
+  PENDING: { label: "Pending", variant: "outline" as const, icon: Clock },
+  CONFIRMED: { label: "Confirmed", variant: "secondary" as const, icon: CheckCircle },
+  PROCESSING: { label: "Processing", variant: "secondary" as const, icon: Package },
+  SHIPPED: { label: "Shipped", variant: "default" as const, icon: Truck },
+  DELIVERED: { label: "Delivered", variant: "default" as const, icon: CheckCircle },
+  CANCELLED: { label: "Cancelled", variant: "destructive" as const, icon: AlertTriangle },
+  REFUNDED: { label: "Refunded", variant: "destructive" as const, icon: AlertTriangle },
+} as const;
+
+type ShipmentStatus = keyof typeof SHIPMENT_STATUS_CONFIG;
+
+const ORDER_STATUS_SEQUENCE: ShipmentStatus[] = [
+  "PENDING",
+  "CONFIRMED",
+  "PROCESSING",
+  "SHIPPED",
+  "DELIVERED",
+];
+
+const formatCurrency = (amount: number | null | undefined, currency = "GBP") =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(Number(amount ?? 0));
+
+const formatStatusLabel = (status?: string | null) => {
+  if (!status) return "Pending";
+  return status
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+const parseShippingAddress = (address: unknown) => {
+  if (!address) return null;
+  let parsedAddress = address;
+
+  if (typeof address === "string") {
+    try {
+      parsedAddress = JSON.parse(address);
+    } catch (error) {
+      console.warn("Unable to parse shipping address", error);
+      return null;
     }
-  ],
-  shippingZones: [
-    {
-      id: "zone1",
-      name: "Local (0-25 miles)",
-      description: "Same-day or next-day delivery",
-      baseRate: 3.99,
-      deliveryTime: "Same day",
-      coverage: "Local area",
-      isActive: true,
-      orderCount: 234,
-      avgDeliveryTime: "0.8 days"
-    },
-    {
-      id: "zone2", 
-      name: "Regional (25-100 miles)",
-      description: "Next-day delivery",
-      baseRate: 5.99,
-      deliveryTime: "1-2 days",
-      coverage: "Regional area",
-      isActive: true,
-      orderCount: 456,
-      avgDeliveryTime: "1.5 days"
-    },
-    {
-      id: "zone3",
-      name: "National (100+ miles)",
-      description: "Standard ground shipping",
-      baseRate: 7.99,
-      deliveryTime: "3-5 days",
-      coverage: "National",
-      isActive: true,
-      orderCount: 557,
-      avgDeliveryTime: "3.8 days"
-    }
-  ],
-  recentShipments: [
-    {
-      id: "SH001",
-      orderId: "ORD-2024-001",
-      customer: "Sarah Johnson",
-      destination: "London, UK",
-      method: "Standard Ground",
-      status: "delivered",
-      trackingNumber: "1Z999AA1234567890",
-      shippedDate: "2024-01-15",
-      deliveredDate: "2024-01-18",
-      cost: 7.99,
-      weight: "2.5 lbs",
-      dimensions: "12x8x6 in",
-      carrier: "UPS"
-    },
-    {
-      id: "SH002",
-      orderId: "ORD-2024-002", 
-      customer: "Michael Brown",
-      destination: "Manchester, UK",
-      method: "Expedited",
-      status: "in_transit",
-      trackingNumber: "1Z999AA1234567891",
-      shippedDate: "2024-01-16",
-      deliveredDate: null,
-      cost: 12.99,
-      weight: "1.8 lbs",
-      dimensions: "10x6x4 in",
-      carrier: "FedEx"
-    },
-    {
-      id: "SH003",
-      orderId: "ORD-2024-003",
-      customer: "Emma Wilson",
-      destination: "Birmingham, UK", 
-      method: "Overnight",
-      status: "delivered",
-      trackingNumber: "1Z999AA1234567892",
-      shippedDate: "2024-01-17",
-      deliveredDate: "2024-01-18",
-      cost: 24.99,
-      weight: "3.2 lbs",
-      dimensions: "14x10x8 in",
-      carrier: "UPS"
-    }
-  ],
-  shippingSettings: {
-    freeShippingThreshold: 75.00,
-    handlingFee: 2.50,
-    insuranceRequired: false,
-    signatureRequired: false,
-    allowInternational: true,
-    autoCalculateRates: true,
-    displayShippingCosts: true,
-    allowCustomerChoice: true,
-    defaultCarrier: "UPS",
-    packagingOptions: ["Standard Box", "Custom Box", "Envelope"],
-    weightUnit: "lbs",
-    dimensionUnit: "in"
   }
+
+  if (typeof parsedAddress !== "object" || parsedAddress === null || Array.isArray(parsedAddress)) {
+    return null;
+  }
+
+  const record = parsedAddress as Record<string, unknown>;
+  const getString = (value: unknown) =>
+    typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+
+  return {
+    name: getString(record.fullName) ?? getString(record.name),
+    street: getString(record.street) ?? getString(record.address1) ?? getString(record.address),
+    apartment: getString(record.apartment) ?? getString(record.address2),
+    city: getString(record.city),
+    state: getString(record.state) ?? getString(record.region),
+    postalCode:
+      getString(record.postalCode) ?? getString(record.zip) ?? getString(record.postcode),
+    country: getString(record.country),
+    phone: getString(record.phone),
+    email: getString(record.email),
+    instructions:
+      getString(record.deliveryInstructions) ?? getString(record.instructions),
+  };
+};
+
+type NormalizedAddress = ReturnType<typeof parseShippingAddress>;
+
+interface ApiOrderProductCategory {
+  commissionRate?: number | null | string;
+  name?: string;
+}
+
+interface ApiOrderProduct {
+  name?: string;
+  commissionRate?: number | null | string;
+  category?: ApiOrderProductCategory | null;
+}
+
+interface ApiOrderItem {
+  total?: number | string;
+  price?: number | string;
+  quantity?: number;
+  product?: ApiOrderProduct | null;
+}
+
+interface ApiOrderCustomer {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}
+
+interface ApiOrder {
+  id: string;
+  orderNumber?: string | null;
+  status?: ShipmentStatus | null;
+  paymentStatus?: string | null;
+  paymentMethod?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  totalAmount?: number | string | null;
+  shippingCost?: number | string | null;
+  shippingAddress?: unknown;
+  notes?: string | null;
+  orderItems?: ApiOrderItem[] | null;
+  customer?: ApiOrderCustomer | null;
+}
+
+type NormalizedShipment = {
+  id: string;
+  orderNumber: string;
+  status: ShipmentStatus;
+  paymentStatus: string;
+  createdAtISO: string | null;
+  createdAtFormatted: string;
+  updatedAtISO: string | null;
+  updatedAtFormatted: string;
+  totalAmountValue: number;
+  totalAmountFormatted: string;
+  shippingCostValue: number;
+  shippingCostFormatted: string;
+  shippingMethod: string;
+  shippingAddress: NormalizedAddress;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  destination: string;
+  notes?: string | null;
+  itemsCount: number;
+};
+
+const resolveShippingMethod = (
+  status: ShipmentStatus,
+  shippingCost: number,
+  notes: string | null,
+) => {
+  if (shippingCost > 0) {
+    return "Checkout shipping";
+  }
+
+  const statusMap: Record<ShipmentStatus, string> = {
+    PENDING: "Awaiting pickup scheduling",
+    CONFIRMED: "Awaiting pickup scheduling",
+    PROCESSING: "Packing in progress",
+    SHIPPED: "In transit (vendor courier)",
+    DELIVERED: "Delivered by vendor",
+    CANCELLED: "Shipment cancelled",
+    REFUNDED: "Shipment refunded",
+  };
+
+  if (status in statusMap) {
+    return statusMap[status];
+  }
+
+  if (notes?.toLowerCase().includes("vendor")) {
+    return "Vendor handled";
+  }
+
+  return "Vendor arranged";
+};
+
+const normalizeShipment = (order: ApiOrder): NormalizedShipment => {
+  const shippingAddress = parseShippingAddress(order.shippingAddress);
+  const totalAmount = Number(order.totalAmount ?? 0);
+  const shippingCost = Number(order.shippingCost ?? 0);
+  const notes = order.notes ?? null;
+
+  const status = (order.status ?? "PENDING") as ShipmentStatus;
+  const shippingMethod = resolveShippingMethod(status, shippingCost, notes);
+
+  const destination = shippingAddress
+    ? [shippingAddress.city, shippingAddress.country].filter(Boolean).join(", ") || "Unknown"
+    : "Unknown";
+
+  const createdAtFormatted = order.createdAt
+    ? format(new Date(order.createdAt), "dd MMM yyyy")
+    : "—";
+  const updatedAtFormatted = order.updatedAt
+    ? format(new Date(order.updatedAt), "dd MMM yyyy")
+    : createdAtFormatted;
+
+  const customerName =
+    [order.customer?.firstName, order.customer?.lastName].filter(Boolean).join(" ").trim() ||
+    order.customer?.email ||
+    shippingAddress?.name ||
+    "Customer";
+
+  const itemsCount = (order.orderItems ?? []).reduce(
+    (sum, item) => sum + Number(item.quantity ?? 0),
+    0
+  );
+
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber || order.id,
+    status,
+    paymentStatus: order.paymentStatus ?? "PENDING",
+    createdAtISO: order.createdAt ?? null,
+    createdAtFormatted,
+    updatedAtISO: order.updatedAt ?? null,
+    updatedAtFormatted,
+    totalAmountValue: totalAmount,
+    totalAmountFormatted: formatCurrency(totalAmount),
+    shippingCostValue: shippingCost,
+    shippingCostFormatted: shippingCost > 0 ? formatCurrency(shippingCost) : "Vendor handled",
+    shippingMethod,
+    shippingAddress,
+    customerName,
+    customerEmail: order.customer?.email || shippingAddress?.email || "Not provided",
+    customerPhone: shippingAddress?.phone ?? null,
+    destination,
+    notes: notes ?? undefined,
+    itemsCount,
+  };
+};
+
+const getNextStatus = (status: ShipmentStatus): ShipmentStatus | null => {
+  const index = ORDER_STATUS_SEQUENCE.indexOf(status);
+  if (index === -1 || index === ORDER_STATUS_SEQUENCE.length - 1) {
+    return null;
+  }
+  return ORDER_STATUS_SEQUENCE[index + 1];
 };
 
 export function VendorShipping() {
-  const [activeTab, setActiveTab] = useState("overview");
-  const [selectedMethod, setSelectedMethod] = useState(null);
-  const [showAddMethod, setShowAddMethod] = useState(false);
-  const [showAddZone, setShowAddZone] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [newMethod, setNewMethod] = useState({
-    name: "",
-    description: "",
-    baseRate: "",
-    freeThreshold: "",
-    estimatedDays: "",
-    zones: []
-  });
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedShipment, setSelectedShipment] = useState<NormalizedShipment | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-GB', {
-      style: 'currency',
-      currency: 'GBP'
-    }).format(amount);
-  };
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["vendor-shipping"],
+    queryFn: async () => {
+      const response = await apiFetch<{
+        success: boolean;
+        data: { orders: ApiOrder[]; pagination: { total: number } };
+        message?: string;
+      }>("/orders?limit=100");
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      delivered: { variant: "default" as const, icon: CheckCircle, color: "text-green-600" },
-      in_transit: { variant: "secondary" as const, icon: Truck, color: "text-blue-600" },
-      pending: { variant: "outline" as const, icon: Clock, color: "text-yellow-600" },
-      failed: { variant: "destructive" as const, icon: AlertTriangle, color: "text-red-600" }
-    };
-    
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-    const IconComponent = config.icon;
-    
-    return (
-      <Badge variant={config.variant} className="flex items-center space-x-1">
-        <IconComponent className="h-3 w-3" />
-        <span className="capitalize">{status.replace('_', ' ')}</span>
-      </Badge>
+      if (!response.success) {
+        throw new Error(response.message || "Failed to load shipping data");
+      }
+
+      return response.data;
+    },
+  });
+
+  const shipments = useMemo(
+    () => (data?.orders ?? []).map(normalizeShipment),
+    [data?.orders],
+  );
+
+  const stats = useMemo(() => {
+    const total = shipments.length;
+    const awaitingDispatch = shipments.filter((shipment) =>
+      ["PENDING", "CONFIRMED", "PROCESSING"].includes(shipment.status),
+    ).length;
+    const inTransit = shipments.filter((shipment) => shipment.status === "SHIPPED").length;
+    const delivered = shipments.filter((shipment) => shipment.status === "DELIVERED").length;
+    const issues = shipments.filter((shipment) =>
+      ["CANCELLED", "REFUNDED"].includes(shipment.status),
+    ).length;
+    const totalShippingCost = shipments.reduce(
+      (sum, shipment) => sum + shipment.shippingCostValue,
+      0,
     );
-  };
+    const averageShippingCost = total > 0 ? totalShippingCost / total : 0;
+    const vendorHandled = shipments.filter((shipment) => shipment.shippingMethod === "Vendor handled")
+      .length;
 
-  const handleCreateShippingLabel = (shipmentId: string) => {
-    toast({
-      title: "Shipping Label Created",
-      description: `Label for shipment ${shipmentId} has been generated and sent to your email.`,
-    });
-  };
+    return {
+      total,
+      awaitingDispatch,
+      inTransit,
+      delivered,
+      issues,
+      averageShippingCost,
+      vendorHandled,
+    };
+  }, [shipments]);
 
-  const handleTrackShipment = (trackingNumber: string) => {
-    toast({
-      title: "Tracking Information",
-      description: `Opening tracking page for ${trackingNumber}`,
-    });
-  };
+  const methodBreakdown = useMemo(() => {
+    const counts = shipments.reduce<Record<string, number>>((accumulator, shipment) => {
+      accumulator[shipment.shippingMethod] = (accumulator[shipment.shippingMethod] ?? 0) + 1;
+      return accumulator;
+    }, {});
 
-  const handleAddMethod = () => {
-    // Validate form
-    if (!newMethod.name || !newMethod.baseRate || !newMethod.estimatedDays) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields (Name, Base Rate, Estimated Days).",
-        variant: "destructive",
-      });
-      return;
+    const entries = Object.entries(counts)
+      .map(([method, count]) => ({
+        method,
+        count,
+        percentage: stats.total > 0 ? (count / stats.total) * 100 : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    if (entries.length === 0) {
+      entries.push({ method: "Vendor handled", count: 0, percentage: 0 });
     }
 
-    // Simulate API call
-    toast({
-      title: "Shipping Method Added",
-      description: `${newMethod.name} has been successfully added to your shipping methods.`,
-    });
+    return entries;
+  }, [shipments, stats.total]);
 
-    // Reset form
-    setNewMethod({
-      name: "",
-      description: "",
-      baseRate: "",
-      freeThreshold: "",
-      estimatedDays: "",
-      zones: []
+  const topDestinations = useMemo(() => {
+    const counts = shipments.reduce<Record<string, number>>((accumulator, shipment) => {
+      accumulator[shipment.destination] = (accumulator[shipment.destination] ?? 0) + 1;
+      return accumulator;
+    }, {});
+
+    return Object.entries(counts)
+      .map(([destination, count]) => ({ destination, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [shipments]);
+
+  const filteredShipments = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return shipments.filter((shipment) => {
+      const matchesStatus = statusFilter === "all" || shipment.status === statusFilter;
+      const matchesSearch =
+        !term ||
+        shipment.orderNumber.toLowerCase().includes(term) ||
+        shipment.customerName.toLowerCase().includes(term) ||
+        shipment.destination.toLowerCase().includes(term);
+
+      return matchesStatus && matchesSearch;
     });
-    setShowAddMethod(false);
+  }, [shipments, searchTerm, statusFilter]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredShipments.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [filteredShipments.length, currentPage, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredShipments.length / itemsPerPage));
+  const paginatedShipments = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredShipments.slice(start, start + itemsPerPage);
+  }, [filteredShipments, currentPage, itemsPerPage]);
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: ShipmentStatus }) => {
+      const response = await apiFetch<{ success: boolean; message?: string }>(
+        `/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        },
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to update shipment status");
+      }
+    },
+    onSuccess: (_data, variables) => {
+      toast({
+        title: "Shipment updated",
+        description: `Order ${variables.orderId} is now ${formatStatusLabel(variables.status)}.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["vendor-shipping"] });
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Failed to update shipment status";
+      toast({
+        title: "Update failed",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleRefresh = () => {
+    refetch();
+    toast({
+      title: "Shipping data refreshed",
+      description: "Latest shipments pulled from the server.",
+    });
   };
 
-  const handleAddZone = () => {
-    toast({
-      title: "Feature Coming Soon",
-      description: "Zone management will be available in the next update.",
-    });
+  const openDetails = (shipment: NormalizedShipment) => {
+    setSelectedShipment(shipment);
+    setIsDetailOpen(true);
+  };
+
+  const closeDetails = () => {
+    setIsDetailOpen(false);
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Shipping Management</h1>
+          <h1 className="text-3xl font-bold text-foreground">Shipping Management</h1>
           <p className="text-muted-foreground">
-            Manage shipping methods, zones, and track shipments
+            Track fulfilment progress and manage customer deliveries
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button 
-            variant="outline"
-            onClick={() => {
-              toast({
-                title: "Settings",
-                description: "Opening shipping settings configuration.",
-              });
-            }}
-          >
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
-          <Dialog open={showAddMethod} onOpenChange={setShowAddMethod}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Method
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Add New Shipping Method</DialogTitle>
-                <DialogDescription>
-                  Create a new shipping method for your store
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Method Name *</label>
-                  <Input
-                    placeholder="e.g., Express Delivery"
-                    value={newMethod.name}
-                    onChange={(e) => setNewMethod({...newMethod, name: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea
-                    placeholder="Describe this shipping method..."
-                    value={newMethod.description}
-                    onChange={(e) => setNewMethod({...newMethod, description: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Base Rate (£) *</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="9.99"
-                      value={newMethod.baseRate}
-                      onChange={(e) => setNewMethod({...newMethod, baseRate: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Free Threshold (£)</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="100.00"
-                      value={newMethod.freeThreshold}
-                      onChange={(e) => setNewMethod({...newMethod, freeThreshold: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Estimated Delivery Time *</label>
-                  <Input
-                    placeholder="e.g., 2-3 business days"
-                    value={newMethod.estimatedDays}
-                    onChange={(e) => setNewMethod({...newMethod, estimatedDays: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Available Zones</label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select zones" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="domestic">Domestic</SelectItem>
-                      <SelectItem value="international">International</SelectItem>
-                      <SelectItem value="local">Local Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end space-x-2 pt-4">
-                  <Button variant="outline" onClick={() => setShowAddMethod(false)}>
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAddMethod}>
-                    Add Method
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+        <Button
+          variant="outline"
+          onClick={handleRefresh}
+          disabled={isFetching}
+        >
+          <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+          {isFetching ? "Refreshing…" : "Refresh data"}
+        </Button>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
+        <Card className="xl:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total shipments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Orders that require fulfilment</p>
+          </CardContent>
+        </Card>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Shipments</CardTitle>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Awaiting dispatch</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold text-foreground">{stats.awaitingDispatch}</div>
+            <p className="text-xs text-muted-foreground">Pending, confirmed or processing orders</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">In transit</CardTitle>
             <Truck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{shippingData.overview.totalShipments.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">
-              {shippingData.overview.pendingShipments} pending
-            </p>
+            <div className="text-3xl font-bold text-foreground">{stats.inTransit}</div>
+            <p className="text-xs text-muted-foreground">Marked as shipped</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">On-Time Delivery</CardTitle>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{shippingData.overview.onTimeDelivery}%</div>
-            <p className="text-xs text-muted-foreground">
-              Avg delivery: {shippingData.overview.avgDeliveryTime}
-            </p>
+            <div className="text-3xl font-bold text-foreground">{stats.delivered}</div>
+            <p className="text-xs text-muted-foreground">Completed deliveries</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Shipping Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Issues</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(shippingData.overview.shippingRevenue)}</div>
-            <p className="text-xs text-muted-foreground">
-              Net profit: {formatCurrency(shippingData.overview.netShippingProfit)}
-            </p>
+            <div className="text-3xl font-bold text-foreground">{stats.issues}</div>
+            <p className="text-xs text-muted-foreground">Cancelled or refunded orders</p>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Shipping Cost</CardTitle>
-            <Calculator className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Average shipping cost</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(shippingData.overview.avgShippingCost)}</div>
+            <div className="text-3xl font-bold text-foreground">
+              {formatCurrency(stats.averageShippingCost)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              Top method: {shippingData.overview.topShippingMethod}
+              {stats.vendorHandled} shipments handled directly by you
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="methods">Methods</TabsTrigger>
-          <TabsTrigger value="zones">Zones</TabsTrigger>
-          <TabsTrigger value="shipments">Shipments</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <BarChart3 className="h-5 w-5" />
-                  <span>Shipping Performance</span>
-                </CardTitle>
-                <CardDescription>Key shipping metrics and trends</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Delivery Success Rate</span>
-                    <span className="font-bold text-green-600">96.8%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Return Rate</span>
-                    <span className="font-bold text-orange-600">2.1%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">Failed Deliveries</span>
-                    <span className="font-bold text-red-600">{shippingData.overview.failedDeliveries}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm">In Transit</span>
-                    <span className="font-bold text-blue-600">{shippingData.overview.inTransit}</span>
-                  </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Shipping methods</CardTitle>
+            <CardDescription>Breakdown of how orders are dispatched</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {methodBreakdown.map((entry) => (
+              <div key={entry.method} className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-foreground">{entry.method}</span>
+                  <span className="text-muted-foreground">
+                    {entry.count} shipments · {entry.percentage.toFixed(0)}%
+                  </span>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <TrendingUp className="h-5 w-5" />
-                  <span>Shipping Methods Usage</span>
-                </CardTitle>
-                <CardDescription>Distribution of shipping methods</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {shippingData.shippingMethods.map((method) => (
-                    <div key={method.id} className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium text-sm">{method.name}</span>
-                        <span className="text-sm font-bold">{method.usage}%</span>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div 
-                          className="bg-blue-500 h-2 rounded-full" 
-                          style={{ width: `${method.usage}%` }}
-                        ></div>
-                      </div>
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Rate: {formatCurrency(method.baseRate)}</span>
-                        <span>Avg: {method.avgDeliveryTime}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Methods Tab */}
-        <TabsContent value="methods" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {shippingData.shippingMethods.map((method) => (
-              <Card key={method.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{method.name}</CardTitle>
-                      <CardDescription>{method.description}</CardDescription>
-                    </div>
-                    <Badge variant={method.isActive ? "default" : "secondary"}>
-                      {method.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Base Rate:</span>
-                      <span className="font-bold">{formatCurrency(method.baseRate)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Free Threshold:</span>
-                      <span className="font-bold">{formatCurrency(method.freeThreshold)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Delivery Time:</span>
-                      <span className="font-bold">{method.estimatedDays} days</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Usage:</span>
-                      <span className="font-bold">{method.usage}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Zones:</span>
-                      <div className="flex space-x-1">
-                        {method.zones.map((zone) => (
-                          <Badge key={zone} variant="outline" className="text-xs">
-                            {zone}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex space-x-2 pt-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => {
-                          toast({
-                            title: "Edit Shipping Method",
-                            description: `Editing ${method.name} - Feature coming soon!`,
-                          });
-                        }}
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => {
-                          toast({
-                            title: "Method Settings",
-                            description: `Opening settings for ${method.name}`,
-                          });
-                        }}
-                      >
-                        <Settings className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Zones Tab */}
-        <TabsContent value="zones" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {shippingData.shippingZones.map((zone) => (
-              <Card key={zone.id}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{zone.name}</CardTitle>
-                      <CardDescription>{zone.description}</CardDescription>
-                    </div>
-                    <Badge variant={zone.isActive ? "default" : "secondary"}>
-                      {zone.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Base Rate:</span>
-                      <span className="font-bold">{formatCurrency(zone.baseRate)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Delivery Time:</span>
-                      <span className="font-bold">{zone.deliveryTime}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Orders:</span>
-                      <span className="font-bold">{zone.orderCount}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-medium">Coverage:</span>
-                      <span className="font-bold text-sm">{zone.coverage}</span>
-                    </div>
-                    <div className="flex space-x-2 pt-2">
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="flex-1"
-                        onClick={() => {
-                          toast({
-                            title: "Edit Shipping Zone",
-                            description: `Editing ${zone.name} - Feature coming soon!`,
-                          });
-                        }}
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => {
-                          toast({
-                            title: "Zone Coverage",
-                            description: `Viewing coverage map for ${zone.name}`,
-                          });
-                        }}
-                      >
-                        <MapPin className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        {/* Shipments Tab */}
-        <TabsContent value="shipments" className="space-y-4">
-          {/* Search and Filters */}
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search shipments by ID, order, or customer..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="All Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in_transit">In Transit</SelectItem>
-                      <SelectItem value="delivered">Delivered</SelectItem>
-                      <SelectItem value="failed">Failed</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <div
+                    className="h-2 rounded-full bg-primary transition-all"
+                    style={{ width: `${entry.percentage}%` }}
+                  />
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            ))}
+            {stats.total === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No shipments yet. Orders will appear here once customers start purchasing.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Top destinations</CardTitle>
+            <CardDescription>Where your recent orders are heading</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {topDestinations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Destinations will appear once orders are placed.</p>
+            ) : (
+              topDestinations.map((entry) => (
+                <div
+                  key={entry.destination}
+                  className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <MapPin className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium text-foreground">{entry.destination}</span>
+                  </div>
+                  <span className="text-sm text-muted-foreground">{entry.count}</span>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Shipments Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Shipments</CardTitle>
-              <CardDescription>Track and manage all your shipments</CardDescription>
-            </CardHeader>
-            <CardContent>
+      <Card>
+        <CardHeader>
+          <CardTitle>Shipments</CardTitle>
+          <CardDescription>Find orders by customer, destination, or status</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by order number, customer, or destination…"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[220px]">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {Object.entries(SHIPMENT_STATUS_CONFIG).map(([status, config]) => (
+                  <SelectItem key={status} value={status}>
+                    {config.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {isFetching && (
+            <div className="flex items-center text-xs text-muted-foreground">
+              <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+              Syncing latest data…
+            </div>
+          )}
+          {isLoading ? (
+            <div className="py-16 text-center text-muted-foreground">Loading shipments…</div>
+          ) : filteredShipments.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              No shipments match your filters yet.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Shipment ID</TableHead>
                     <TableHead>Order</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Destination</TableHead>
-                    <TableHead>Method</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Cost</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>Updated</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {shippingData.recentShipments.map((shipment) => (
-                    <TableRow key={shipment.id}>
-                      <TableCell className="font-medium">{shipment.id}</TableCell>
-                      <TableCell>{shipment.orderId}</TableCell>
-                      <TableCell>{shipment.customer}</TableCell>
-                      <TableCell>{shipment.destination}</TableCell>
-                      <TableCell>{shipment.method}</TableCell>
-                      <TableCell>{getStatusBadge(shipment.status)}</TableCell>
-                      <TableCell>{formatCurrency(shipment.cost)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCreateShippingLabel(shipment.id)}
-                          >
-                            <Download className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleTrackShipment(shipment.trackingNumber)}
-                          >
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {paginatedShipments.map((shipment) => {
+                    const config = SHIPMENT_STATUS_CONFIG[shipment.status] ?? SHIPMENT_STATUS_CONFIG.PENDING;
+                    const Icon = config.icon;
+                    const nextStatus = getNextStatus(shipment.status);
+
+                    return (
+                      <TableRow key={shipment.id}>
+                        <TableCell className="font-medium">{shipment.orderNumber}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">{shipment.customerName}</p>
+                            <p className="text-xs text-muted-foreground">{shipment.customerEmail}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm text-foreground">{shipment.destination}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {shipment.itemsCount} {shipment.itemsCount === 1 ? "item" : "items"}
+                          </p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={config.variant} className="flex items-center space-x-1">
+                            <Icon className="h-3 w-3" />
+                            <span>{config.label}</span>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm text-foreground">{formatStatusLabel(shipment.paymentStatus)}</p>
+                          <p className="text-xs text-muted-foreground">{shipment.shippingCostFormatted}</p>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm font-medium text-foreground">{shipment.totalAmountFormatted}</p>
+                          <p className="text-xs text-muted-foreground">{shipment.shippingMethod}</p>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {shipment.updatedAtFormatted}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end space-x-2">
+                            {nextStatus && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  updateStatus.mutate({
+                                    orderId: shipment.id,
+                                    status: nextStatus,
+                                  })
+                                }
+                                disabled={updateStatus.isPending}
+                              >
+                                {updateStatus.isPending ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  `Mark ${formatStatusLabel(nextStatus)}`
+                                )}
+                              </Button>
+                            )}
+                            <Button
+                              size="sm"
+                              onClick={() => openDetails(shipment)}
+                            >
+                              View
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredShipments.length}
+            itemsPerPage={itemsPerPage}
+          />
+        </CardContent>
+      </Card>
 
-        {/* Settings Tab */}
-        <TabsContent value="settings" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Shipping Configuration</CardTitle>
-                <CardDescription>Configure your shipping settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Free Shipping Threshold</label>
-                  <Input 
-                    type="number" 
-                    value={shippingData.shippingSettings.freeShippingThreshold}
-                    placeholder="75.00"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Handling Fee</label>
-                  <Input 
-                    type="number" 
-                    value={shippingData.shippingSettings.handlingFee}
-                    placeholder="2.50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Default Carrier</label>
-                  <Select defaultValue={shippingData.shippingSettings.defaultCarrier}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="UPS">UPS</SelectItem>
-                      <SelectItem value="FedEx">FedEx</SelectItem>
-                      <SelectItem value="DHL">DHL</SelectItem>
-                      <SelectItem value="Royal Mail">Royal Mail</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input 
-                    type="checkbox" 
-                    checked={shippingData.shippingSettings.autoCalculateRates}
-                    onChange={() => {
-                      toast({
-                        title: "Settings Updated",
-                        description: "Auto-calculate shipping rates setting toggled.",
-                      });
-                    }}
-                    className="rounded"
-                  />
-                  <label className="text-sm">Auto-calculate shipping rates</label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <input 
-                    type="checkbox" 
-                    checked={shippingData.shippingSettings.allowInternational}
-                    onChange={() => {
-                      toast({
-                        title: "Settings Updated",
-                        description: "International shipping setting toggled.",
-                      });
-                    }}
-                    className="rounded"
-                  />
-                  <label className="text-sm">Allow international shipping</label>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Packaging Options</CardTitle>
-                <CardDescription>Configure available packaging</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {shippingData.shippingSettings.packagingOptions.map((option) => (
-                    <div key={option} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
-                      <span className="font-medium">{option}</span>
-                      <div className="flex items-center space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => {
-                            toast({
-                              title: "Edit Packaging",
-                              description: `Editing ${option} - Feature coming soon!`,
-                            });
-                          }}
-                        >
-                          <Edit className="h-3 w-3" />
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => {
-                            toast({
-                              title: "Delete Packaging",
-                              description: `Are you sure you want to delete ${option}?`,
-                              variant: "destructive",
-                            });
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
+      <Dialog open={isDetailOpen} onOpenChange={closeDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Shipping details</DialogTitle>
+            <DialogDescription>
+              Full shipping information for order {selectedShipment?.orderNumber}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedShipment && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base font-semibold text-foreground">
+                      Order summary
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <span>Status</span>
+                      <Badge variant={SHIPMENT_STATUS_CONFIG[selectedShipment.status].variant}>
+                        {SHIPMENT_STATUS_CONFIG[selectedShipment.status].label}
+                      </Badge>
                     </div>
-                  ))}
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="w-full">
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Packaging Option
+                    <div className="flex items-center justify-between">
+                      <span>Placed on</span>
+                      <span className="text-foreground">{selectedShipment.createdAtFormatted}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Last updated</span>
+                      <span className="text-foreground">{selectedShipment.updatedAtFormatted}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Items</span>
+                      <span className="text-foreground">{selectedShipment.itemsCount}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Total</span>
+                      <span className="text-foreground font-medium">
+                        {selectedShipment.totalAmountFormatted}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base font-semibold text-foreground">
+                      Customer contact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm text-muted-foreground">
+                    <div>
+                      <p className="text-foreground font-medium">{selectedShipment.customerName}</p>
+                      <p>{selectedShipment.customerEmail}</p>
+                    </div>
+                    {selectedShipment.customerPhone ? (
+                      <p>{selectedShipment.customerPhone}</p>
+                    ) : (
+                      <p className="italic">No phone number provided.</p>
+                    )}
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => (window.location.href = `mailto:${selectedShipment.customerEmail}`)}
+                      >
+                        <Mail className="mr-2 h-4 w-4" />
+                        Email
                       </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Add Packaging Option</DialogTitle>
-                        <DialogDescription>
-                          Add a new packaging option for your shipments
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Packaging Name</label>
-                          <Input placeholder="e.g., Large Box, Envelope, Custom Box" />
+                      {selectedShipment.customerPhone && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => (window.location.href = `tel:${selectedShipment.customerPhone}`)}
+                        >
+                          <Phone className="mr-2 h-4 w-4" />
+                          Call
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-semibold text-foreground">
+                    Delivery address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm text-muted-foreground">
+                  {selectedShipment.shippingAddress ? (
+                    <>
+                      {selectedShipment.shippingAddress.name && (
+                        <p className="text-foreground">{selectedShipment.shippingAddress.name}</p>
+                      )}
+                      {selectedShipment.shippingAddress.street && (
+                        <p>{selectedShipment.shippingAddress.street}</p>
+                      )}
+                      {selectedShipment.shippingAddress.apartment && (
+                        <p>{selectedShipment.shippingAddress.apartment}</p>
+                      )}
+                      {(selectedShipment.shippingAddress.city ||
+                        selectedShipment.shippingAddress.state) && (
+                        <p>
+                          {[selectedShipment.shippingAddress.city, selectedShipment.shippingAddress.state]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {(selectedShipment.shippingAddress.postalCode ||
+                        selectedShipment.shippingAddress.country) && (
+                        <p>
+                          {[selectedShipment.shippingAddress.postalCode, selectedShipment.shippingAddress.country]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {selectedShipment.shippingAddress.instructions && (
+                        <div className="rounded-lg bg-muted/30 p-3">
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            Delivery instructions
+                          </p>
+                          <p className="text-sm text-foreground">
+                            {selectedShipment.shippingAddress.instructions}
+                          </p>
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-sm font-medium">Description</label>
-                          <Textarea placeholder="Describe this packaging option..." />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium">Max Weight (lbs)</label>
-                            <Input type="number" placeholder="10" />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium">Max Dimensions (in)</label>
-                            <Input placeholder="12x8x6" />
-                          </div>
-                        </div>
-                        <div className="flex justify-end space-x-2 pt-4">
-                          <Button variant="outline">
-                            Cancel
-                          </Button>
-                          <Button onClick={() => {
-                            toast({
-                              title: "Packaging Option Added",
-                              description: "New packaging option has been added successfully.",
-                            });
-                          }}>
-                            Add Option
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-      </Tabs>
+                      )}
+                    </>
+                  ) : (
+                    <p>No shipping address provided.</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Shipping is arranged directly with the customer once the order is confirmed.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {selectedShipment.notes && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base font-semibold text-foreground">
+                      Order notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground whitespace-pre-line">
+                      {selectedShipment.notes}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+export default VendorShipping;

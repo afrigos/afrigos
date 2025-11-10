@@ -232,7 +232,7 @@ export default function Returns() {
                 Contact Support
               </a>
               <a 
-                href="mailto:support@afrigos.com" 
+                href="mailto:enquiries@afrigos.com" 
                 className="inline-block border border-primary text-primary px-6 py-2 rounded-md hover:bg-primary/10 transition-colors"
               >
                 Email Us

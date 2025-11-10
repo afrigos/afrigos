@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { authenticate, requireAdmin } from '../middleware/auth';
 
@@ -91,6 +91,7 @@ router.get('/', async (req: any, res: any) => {
         description: category.description,
         type: category.type,
         status: category.isActive ? 'active' : 'inactive',
+        commissionRate: category.commissionRate ? Number(category.commissionRate) : null,
         vendorCount,
         productCount,
         revenue: `£${(revenueResult._sum.total || 0).toLocaleString()}`,
@@ -179,6 +180,7 @@ router.get('/:id', async (req: any, res: any) => {
       description: category.description,
       type: category.type,
       status: category.isActive ? 'active' : 'inactive',
+      commissionRate: category.commissionRate ? Number(category.commissionRate) : null,
       vendorCount,
       productCount,
       revenue: `£${(revenueResult._sum.total || 0).toLocaleString()}`,
@@ -204,7 +206,8 @@ router.post('/', authenticate, requireAdmin, [
   body('name').notEmpty().withMessage('Category name is required'),
   body('description').optional().isString(),
   body('type').optional().isString(),
-  body('status').optional().isIn(['active', 'inactive'])
+  body('status').optional().isIn(['active', 'inactive']),
+  body('commissionRate').optional().isFloat({ min: 0, max: 100 }).withMessage('Commission rate must be between 0 and 100')
 ], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
@@ -216,7 +219,7 @@ router.post('/', authenticate, requireAdmin, [
       });
     }
 
-    const { name, description, type, status } = req.body;
+    const { name, description, type, status, commissionRate } = req.body;
 
     // Check if category name already exists
     const existingCategory = await prisma.category.findUnique({
@@ -235,14 +238,18 @@ router.post('/', authenticate, requireAdmin, [
         name,
         description: description || '',
         type: (type as any) || 'AugmentableProduct',
-        isActive: status === 'active' || status === undefined
+        isActive: status === 'active' || status === undefined,
+        commissionRate: commissionRate !== undefined ? new Prisma.Decimal(commissionRate) : null
       }
     });
 
     res.status(201).json({
       success: true,
       message: 'Category created successfully',
-      data: category
+      data: {
+        ...category,
+        commissionRate: category.commissionRate ? Number(category.commissionRate) : null
+      }
     });
   } catch (error) {
     console.error('Error creating category:', error);
@@ -258,7 +265,8 @@ router.put('/:id', authenticate, requireAdmin, [
   body('name').optional().notEmpty().withMessage('Category name cannot be empty'),
   body('description').optional().isString(),
   body('type').optional().isString(),
-  body('status').optional().isIn(['active', 'inactive'])
+  body('status').optional().isIn(['active', 'inactive']),
+  body('commissionRate').optional().isFloat({ min: 0, max: 100 }).withMessage('Commission rate must be between 0 and 100')
 ], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
@@ -271,7 +279,7 @@ router.put('/:id', authenticate, requireAdmin, [
     }
 
     const { id } = req.params;
-    const { name, description, type, status } = req.body;
+    const { name, description, type, status, commissionRate } = req.body;
 
     // Check if category exists
     const existingCategory = await prisma.category.findUnique({
@@ -304,6 +312,9 @@ router.put('/:id', authenticate, requireAdmin, [
     if (description !== undefined) updateData.description = description;
     if (type !== undefined) updateData.type = type as any;
     if (status !== undefined) updateData.isActive = status === 'active';
+    if (commissionRate !== undefined) {
+      updateData.commissionRate = commissionRate === null ? null : new Prisma.Decimal(commissionRate);
+    }
 
     const category = await prisma.category.update({
       where: { id },
@@ -313,7 +324,10 @@ router.put('/:id', authenticate, requireAdmin, [
     res.json({
       success: true,
       message: 'Category updated successfully',
-      data: category
+      data: {
+        ...category,
+        commissionRate: category.commissionRate ? Number(category.commissionRate) : null
+      }
     });
   } catch (error) {
     console.error('Error updating category:', error);

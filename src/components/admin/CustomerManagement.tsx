@@ -464,93 +464,93 @@ const customerStats = [
                     </TableRow>
                   ) : (
                     customers.map((customer: any) => (
-                      <TableRow key={customer.id}>
+                    <TableRow key={customer.id}>
                         <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="text-sm">{customer.email}</div>
-                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{customer.location}</TableCell>
-                        <TableCell>
-                          <div className="text-center">
-                            <div className="font-medium">{customer.totalOrders}</div>
-                            <div className="text-sm text-muted-foreground">orders</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{customer.totalSpent}</TableCell>
-                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                            <span className="text-sm">{customer.rating}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{customer.email}</div>
+                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{customer.location}</TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className="font-medium">{customer.totalOrders}</div>
+                          <div className="text-sm text-muted-foreground">orders</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{customer.totalSpent}</TableCell>
+                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                          <span className="text-sm">{customer.rating}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewProfile(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "email")}
+                            disabled={isLoading === customer.id}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "phone")}
+                            disabled={isLoading === customer.id}
+                          >
+                            <Phone className="h-4 w-4" />
+                          </Button>
+                          {customer.status === "active" && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleViewProfile(customer)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "email")}
+                              onClick={() => handleSuspendCustomer(customer.id)}
                               disabled={isLoading === customer.id}
                             >
-                              <Mail className="h-4 w-4" />
+                              <AlertTriangle className="h-4 w-4 text-warning" />
                             </Button>
+                          )}
+                          {customer.status === "suspended" && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "phone")}
+                              onClick={() => handleActivateCustomer(customer.id)}
                               disabled={isLoading === customer.id}
                             >
-                              <Phone className="h-4 w-4" />
+                              <CheckCircle className="h-4 w-4 text-success" />
                             </Button>
-                            {customer.status === "active" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleSuspendCustomer(customer.id)}
-                                disabled={isLoading === customer.id}
-                              >
-                                <AlertTriangle className="h-4 w-4 text-warning" />
-                              </Button>
-                            )}
-                            {customer.status === "suspended" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleActivateCustomer(customer.id)}
-                                disabled={isLoading === customer.id}
-                              >
-                                <CheckCircle className="h-4 w-4 text-success" />
-                              </Button>
-                            )}
-                            {customer.status === "inactive" && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleActivateCustomer(customer.id)}
-                                disabled={isLoading === customer.id}
-                              >
-                                <CheckCircle className="h-4 w-4 text-success" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          )}
+                          {customer.status === "inactive" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleActivateCustomer(customer.id)}
+                              disabled={isLoading === customer.id}
+                            >
+                              <CheckCircle className="h-4 w-4 text-success" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -607,60 +607,60 @@ const customerStats = [
                     </TableRow>
                   ) : (
                     customers.filter((c: any) => c.status === "active").map((customer: any) => (
-                      <TableRow key={customer.id}>
+                    <TableRow key={customer.id}>
                         <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="text-sm">{customer.email}</div>
-                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-center">
-                            <div className="font-medium">{customer.totalOrders}</div>
-                            <div className="text-sm text-muted-foreground">orders</div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">{customer.totalSpent}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-1">
-                            <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                            <span className="text-sm">{customer.rating}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewProfile(customer)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "email")}
-                            >
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleSuspendCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
-                            >
-                              <AlertTriangle className="h-4 w-4 text-warning" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{customer.email}</div>
+                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className="font-medium">{customer.totalOrders}</div>
+                          <div className="text-sm text-muted-foreground">orders</div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{customer.totalSpent}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                          <span className="text-sm">{customer.rating}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewProfile(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "email")}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleSuspendCustomer(customer.id)}
+                            disabled={isLoading === customer.id}
+                          >
+                            <AlertTriangle className="h-4 w-4 text-warning" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -706,57 +706,57 @@ const customerStats = [
                     </TableRow>
                   ) : (
                     customers.filter((c: any) => c.status !== "active").map((customer: any) => (
-                      <TableRow key={customer.id}>
+                    <TableRow key={customer.id}>
                         <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="text-sm">{customer.email}</div>
-                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                        <TableCell>
-                          <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-center">
-                            <div className="font-medium">{customer.supportTickets}</div>
-                            <div className="text-sm text-muted-foreground">tickets</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewProfile(customer)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleActivateCustomer(customer.id)}
-                              disabled={isLoading === customer.id}
-                            >
-                              <CheckCircle className="h-4 w-4 text-success" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "email")}
-                            >
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{customer.email}</div>
+                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className="font-medium">{customer.supportTickets}</div>
+                          <div className="text-sm text-muted-foreground">tickets</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewProfile(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleActivateCustomer(customer.id)}
+                            disabled={isLoading === customer.id}
+                          >
+                            <CheckCircle className="h-4 w-4 text-success" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "email")}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -802,68 +802,68 @@ const customerStats = [
                     </TableRow>
                   ) : (
                     customers.filter((c: any) => c.supportTickets > 0).map((customer: any) => (
-                      <TableRow key={customer.id}>
+                    <TableRow key={customer.id}>
                         <TableCell className="font-medium">{customer.id.slice(0, 8)}...</TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-medium">{customer.name}</div>
-                            <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{customer.name}</div>
+                          <div className="text-sm text-muted-foreground">Joined {customer.joinDate}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div>
+                          <div className="text-sm">{customer.email}</div>
+                          <div className="text-sm text-muted-foreground">{customer.phone}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-center">
+                          <div className={`font-medium ${customer.supportTickets > 3 ? "text-destructive" : "text-warning"}`}>
+                            {customer.supportTickets}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="text-sm">{customer.email}</div>
-                            <div className="text-sm text-muted-foreground">{customer.phone}</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-center">
-                            <div className={`font-medium ${customer.supportTickets > 3 ? "text-destructive" : "text-warning"}`}>
-                              {customer.supportTickets}
-                            </div>
-                            <div className="text-sm text-muted-foreground">tickets</div>
-                          </div>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(customer.status)}</TableCell>
-                        <TableCell>
-                          <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center space-x-2">
+                          <div className="text-sm text-muted-foreground">tickets</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(customer.status)}</TableCell>
+                      <TableCell>
+                        <div className="text-sm text-muted-foreground">{customer.lastOrder}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleViewProfile(customer)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "email")}
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleContactCustomer(customer.id, "phone")}
+                          >
+                            <Phone className="h-4 w-4" />
+                          </Button>
+                          {customer.supportTickets > 3 && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleViewProfile(customer)}
+                              onClick={() => handleSuspendCustomer(customer.id)}
+                              disabled={isLoading === customer.id}
                             >
-                              <Eye className="h-4 w-4" />
+                              <AlertTriangle className="h-4 w-4 text-destructive" />
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "email")}
-                            >
-                              <Mail className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleContactCustomer(customer.id, "phone")}
-                            >
-                              <Phone className="h-4 w-4" />
-                            </Button>
-                            {customer.supportTickets > 3 && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleSuspendCustomer(customer.id)}
-                                disabled={isLoading === customer.id}
-                              >
-                                <AlertTriangle className="h-4 w-4 text-destructive" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     ))
                   )}
                 </TableBody>
@@ -906,7 +906,7 @@ const customerStats = [
                   <div className="flex flex-wrap gap-2">
                     {selectedCustomer.preferences && selectedCustomer.preferences.length > 0 ? (
                       selectedCustomer.preferences.map((pref: string, index: number) => (
-                        <Badge key={index} variant="outline">{pref}</Badge>
+                      <Badge key={index} variant="outline">{pref}</Badge>
                       ))
                     ) : (
                       <p className="text-sm text-muted-foreground">No preferences set</p>

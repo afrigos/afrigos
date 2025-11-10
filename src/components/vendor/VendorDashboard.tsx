@@ -179,17 +179,21 @@ export function VendorDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Welcome back, {user?.name}!</h1>
-          <p className="text-muted-foreground">Here's what's happening with your store today.</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-foreground md:text-3xl">
+            Welcome back, {user?.name}!
+          </h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Here's what's happening with your store today.
+          </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
-          <Button size="sm">
+          <Button size="sm" className="w-full sm:w-auto">
             <Eye className="h-4 w-4 mr-2" />
             View Store
           </Button>
@@ -197,7 +201,7 @@ export function VendorDashboard() {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -257,15 +261,21 @@ export function VendorDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="orders">Recent Orders</TabsTrigger>
-          <TabsTrigger value="products">Top Products</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-1 gap-2 sm:grid-cols-3">
+          <TabsTrigger className="text-sm sm:text-base" value="overview">
+            Overview
+          </TabsTrigger>
+          <TabsTrigger className="text-sm sm:text-base" value="orders">
+            Recent Orders
+          </TabsTrigger>
+          <TabsTrigger className="text-sm sm:text-base" value="products">
+            Top Products
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             {/* Order Status Overview */}
             <Card>
               <CardHeader>
@@ -301,38 +311,38 @@ export function VendorDashboard() {
                 <CardDescription>Common tasks and shortcuts</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button 
-                    variant="outline" 
-                    className="h-20 flex flex-col items-center justify-center"
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Button
+                    variant="outline"
+                    className="h-20 flex flex-col items-center justify-center text-xs sm:text-sm"
                     onClick={() => handleQuickAction('Add Product')}
                   >
                     <Plus className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Add Product</span>
+                    <span>Add Product</span>
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="h-20 flex flex-col items-center justify-center"
+                    className="h-20 flex flex-col items-center justify-center text-xs sm:text-sm"
                     onClick={() => handleQuickAction('View Orders')}
                   >
                     <ShoppingCart className="h-6 w-6 mb-2" />
-                    <span className="text-sm">View Orders</span>
+                    <span>View Orders</span>
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="h-20 flex flex-col items-center justify-center"
+                    className="h-20 flex flex-col items-center justify-center text-xs sm:text-sm"
                     onClick={() => handleQuickAction('Analytics')}
                   >
                     <TrendingUp className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Analytics</span>
+                    <span>Analytics</span>
                   </Button>
                   <Button 
                     variant="outline" 
-                    className="h-20 flex flex-col items-center justify-center"
+                    className="h-20 flex flex-col items-center justify-center text-xs sm:text-sm"
                     onClick={() => handleQuickAction('Settings')}
                   >
                     <Package className="h-6 w-6 mb-2" />
-                    <span className="text-sm">Settings</span>
+                    <span>Settings</span>
                   </Button>
                 </div>
               </CardContent>
@@ -351,8 +361,8 @@ export function VendorDashboard() {
               <div className="space-y-4">
                 {vendorData.recentOrders.length > 0 ? (
                   vendorData.recentOrders.map((order) => (
-                  <div key={order.id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
-                    <div className="flex items-center space-x-4">
+                  <div key={order.id} className="flex flex-col gap-4 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
                         <ShoppingCart className="h-5 w-5 text-orange-600" />
                       </div>
@@ -366,7 +376,7 @@ export function VendorDashboard() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="font-bold">{order.total}</p>
                       <Badge className={getStatusColor(order.status)}>
                         {order.status.replace('_', ' ')}
@@ -396,8 +406,8 @@ export function VendorDashboard() {
               <div className="space-y-4">
                 {vendorData.topProducts.length > 0 ? (
                   vendorData.topProducts.map((product, index) => (
-                  <div key={product.name} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
-                    <div className="flex items-center space-x-4">
+                  <div key={product.name} className="flex flex-col gap-4 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
                       <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
                         <span className="text-sm font-bold text-orange-600">{index + 1}</span>
                       </div>
@@ -412,9 +422,9 @@ export function VendorDashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="text-left sm:text-right">
                       <p className="font-bold">{formatCurrency(product.revenue)}</p>
-                      <p className="text-sm text-green-600 flex items-center">
+                      <p className="text-sm text-green-600 flex items-center sm:justify-end">
                         {getGrowthIcon(product.growth)}
                         +{product.growth}%
                       </p>

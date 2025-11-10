@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useQuery } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Bell, 
-  Search, 
-  Settings, 
+import {
+  Bell,
+  Settings,
   Store,
   Package,
   ShoppingCart,
-  DollarSign
+  DollarSign,
+  Menu,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -44,7 +44,11 @@ const fetchVendorDashboard = async (): Promise<VendorDashboardData> => {
   return data.data;
 };
 
-export function VendorHeader() {
+type VendorHeaderProps = {
+  onOpenSidebar?: () => void;
+};
+
+export function VendorHeader({ onOpenSidebar }: VendorHeaderProps) {
   const { user } = useAuth();
   const [notifications] = useState(3); // Mock notification count
 
@@ -56,12 +60,32 @@ export function VendorHeader() {
   });
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-background px-6">
-      {/* Left side - Search and breadcrumb */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <Store className="h-5 w-5 text-orange-600" />
-          <span className="font-semibold text-lg">Vendor Dashboard</span>
+    <header className="flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6">
+      {/* Left */}
+      <div className="flex items-center space-x-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="lg:hidden"
+          onClick={onOpenSidebar}
+        >
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Toggle navigation</span>
+        </Button>
+        <div className="flex items-center space-x-3">
+          <img
+            src="/afrigos.jpg"
+            alt="AfriGos"
+            className="h-9 w-9 rounded-lg object-cover shadow-sm md:h-10 md:w-10"
+          />
+          <div className="flex flex-col leading-tight">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Afrigos Vendor
+            </span>
+            <span className="text-base font-semibold text-foreground md:text-lg">
+              Dashboard
+            </span>
+          </div>
         </div>
       </div>
 
@@ -107,9 +131,11 @@ export function VendorHeader() {
             <p className="text-sm font-medium">{user?.vendorName || user?.name}</p>
             <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
-          <div className="h-8 w-8 rounded-full bg-orange-100 flex items-center justify-center">
-            <Store className="h-4 w-4 text-orange-600" />
-          </div>
+          <img
+            src="/afrigos.jpg"
+            alt="AfriGos"
+            className="h-9 w-9 rounded-full object-cover shadow-sm"
+          />
         </div>
       </div>
     </header>

@@ -591,7 +591,7 @@ export function ProductApprovalQueue() {
                     </TableRow>
                   ) : (
                     products.map((product) => (
-                      <TableRow key={product.id}>
+                    <TableRow key={product.id}>
                       <TableCell>
                         <div>
                           <div className="font-medium">{product.name}</div>
@@ -688,7 +688,7 @@ export function ProductApprovalQueue() {
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-10"
                     />
-                  </div>
+                        </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Filter className="h-4 w-4 text-muted-foreground" />
@@ -1226,15 +1226,15 @@ export function ProductApprovalQueue() {
                             <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">
                               {index + 1}/{selectedProduct.images.length}
                             </div>
-                          </div>
-                        ))}
                       </div>
+                    ))}
+                  </div>
                       {selectedProduct.images.length > 4 && (
                         <p className="text-sm text-muted-foreground text-center">
                           Click on any image to view in full size
                         </p>
                       )}
-                    </div>
+                  </div>
                   ) : (
                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
                       <p className="text-sm text-muted-foreground">No images available</p>

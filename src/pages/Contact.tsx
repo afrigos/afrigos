@@ -68,10 +68,10 @@ export default function Contact() {
                   <div>
                     <h3 className="font-semibold mb-1">Email</h3>
                     <a 
-                      href="mailto:support@afrigos.com" 
+                      href="mailto:enquiries@afrigos.com" 
                       className="text-primary hover:underline"
                     >
-                      support@afrigos.com
+                      enquiries@afrigos.com
                     </a>
                     <p className="text-sm text-muted-foreground mt-1">
                       We typically respond within 24 hours

@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Table,
   TableBody,
@@ -21,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { 
   Search, 
-  Filter, 
   Eye, 
   CheckCircle, 
   XCircle, 
@@ -29,19 +27,19 @@ import {
   Download,
   Mail,
   Phone,
-  MapPin,
   Package,
   Truck,
-  CreditCard,
   AlertTriangle,
   TrendingUp,
   DollarSign,
   Edit,
+  Star,
   Save,
   X,
   Calendar,
   User,
-  ShoppingCart
+  ShoppingCart,
+  Loader2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -51,248 +49,404 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api-client";
+import { format } from "date-fns";
+import { Pagination } from "@/components/ui/pagination";
 
-// Standardized order statuses
-const ORDER_STATUSES = [
-  { value: 'new', label: 'New', color: 'bg-blue-100 text-blue-800', icon: Clock },
-  { value: 'confirmed', label: 'Confirmed', color: 'bg-yellow-100 text-yellow-800', icon: CheckCircle },
-  { value: 'processing', label: 'Processing', color: 'bg-orange-100 text-orange-800', icon: Package },
-  { value: 'ready_for_handover', label: 'Ready for Handover', color: 'bg-purple-100 text-purple-800', icon: Truck },
-  { value: 'in_transit', label: 'In Transit', color: 'bg-indigo-100 text-indigo-800', icon: Truck },
-  { value: 'delivered', label: 'Delivered', color: 'bg-green-100 text-green-800', icon: CheckCircle },
-  { value: 'cancelled', label: 'Cancelled', color: 'bg-red-100 text-red-800', icon: XCircle }
-];
+const ORDER_STATUS_CONFIG = {
+  PENDING: { label: "Pending", color: "bg-blue-100 text-blue-800", icon: Clock },
+  CONFIRMED: { label: "Confirmed", color: "bg-yellow-100 text-yellow-800", icon: CheckCircle },
+  PROCESSING: { label: "Processing", color: "bg-orange-100 text-orange-800", icon: Package },
+  SHIPPED: { label: "Shipped", color: "bg-indigo-100 text-indigo-800", icon: Truck },
+  DELIVERED: { label: "Delivered", color: "bg-green-100 text-green-800", icon: CheckCircle },
+  CANCELLED: { label: "Cancelled", color: "bg-red-100 text-red-800", icon: XCircle },
+  REFUNDED: { label: "Refunded", color: "bg-purple-100 text-purple-800", icon: AlertTriangle },
+} as const;
 
-// Mock vendor order data
-const vendorOrderData = [
-  {
-    id: "ORD001",
-    customer: "Sarah Johnson",
-    email: "sarah.j@email.com",
-    phone: "+44 20 7123 4567",
-    products: [
-      { name: "Jollof Rice Spice Mix", quantity: 2, price: "£12.99" },
-      { name: "Plantain Chips", quantity: 1, price: "£8.50" }
-    ],
-    total: "£34.48",
-    status: "processing",
-    paymentStatus: "paid",
-    paymentMethod: "Credit Card",
-    orderDate: "2024-01-20",
-    deliveryDate: "2024-01-22",
-    deliveryAddress: {
-      streetAddress: "123 High Street",
-      apartment: "Apt 4B",
-      city: "London",
-      state: "Greater London",
-      postcode: "SW1A 1AA",
-      country: "United Kingdom",
-      phone: "+44 20 7123 4567",
-      email: "sarah.j@email.com",
-      deliveryInstructions: "Leave with neighbor if not home"
-    },
-    trackingNumber: "TRK123456789",
-    commission: "£5.17",
-    netAmount: "£29.31"
-  },
-  {
-    id: "ORD002",
-    customer: "Michael Chen",
-    email: "m.chen@email.com",
-    phone: "+44 161 456 7890",
-    products: [
-      { name: "Shea Butter Hair Care Set", quantity: 1, price: "£24.99" }
-    ],
-    total: "£24.99",
-    status: "confirmed",
-    paymentStatus: "paid",
-    paymentMethod: "PayPal",
-    orderDate: "2024-01-21",
-    deliveryDate: null,
-    deliveryAddress: {
-      streetAddress: "456 Oxford Road",
-      city: "Manchester",
-      state: "Greater Manchester",
-      postcode: "M1 7ED",
-      country: "United Kingdom",
-      phone: "+44 161 456 7890",
-      email: "m.chen@email.com"
-    },
-    trackingNumber: null,
-    commission: "£3.75",
-    netAmount: "£21.24"
-  },
-  {
-    id: "ORD003",
-    customer: "Emma Wilson",
-    email: "emma.w@email.com",
-    phone: "+44 121 789 0123",
-    products: [
-      { name: "Traditional Kente Cloth Scarf", quantity: 1, price: "£89.99" }
-    ],
-    total: "£89.99",
-    status: "ready_for_handover",
-    paymentStatus: "paid",
-    paymentMethod: "Apple Pay",
-    orderDate: "2024-01-19",
-    deliveryDate: null,
-    deliveryAddress: {
-      streetAddress: "789 New Street",
-      city: "Birmingham",
-      state: "West Midlands",
-      postcode: "B1 1AA",
-      country: "United Kingdom",
-      phone: "+44 121 789 0123",
-      email: "emma.w@email.com"
-    },
-    trackingNumber: null,
-    commission: "£13.50",
-    netAmount: "£76.49"
-  },
-  {
-    id: "ORD004",
-    customer: "David Brown",
-    email: "d.brown@email.com",
-    phone: "+44 113 234 5678",
-    products: [
-      { name: "Moringa Leaf Powder", quantity: 3, price: "£18.50" }
-    ],
-    total: "£55.50",
-    status: "new",
-    paymentStatus: "paid",
-    paymentMethod: "Bank Transfer",
-    orderDate: "2024-01-22",
-    deliveryDate: null,
-    deliveryAddress: {
-      streetAddress: "321 Park Lane",
-      city: "Leeds",
-      state: "West Yorkshire",
-      postcode: "LS1 1AA",
-      country: "United Kingdom",
-      phone: "+44 113 234 5678",
-      email: "d.brown@email.com"
-    },
-    trackingNumber: null,
-    commission: "£8.33",
-    netAmount: "£47.17"
-  },
-  {
-    id: "ORD005",
-    customer: "Lisa Thompson",
-    email: "lisa.t@email.com",
-    phone: "+44 141 567 8901",
-    products: [
-      { name: "Nigerian Pepper Soup Mix", quantity: 2, price: "£8.99" },
-      { name: "Plantain Chips", quantity: 3, price: "£8.50" }
-    ],
-    total: "£42.98",
-    status: "delivered",
-    paymentStatus: "paid",
-    paymentMethod: "Credit Card",
-    orderDate: "2024-01-18",
-    deliveryDate: "2024-01-20",
-    deliveryAddress: {
-      streetAddress: "15 Queen Street",
-      city: "Glasgow",
-      state: "Scotland",
-      postcode: "G1 3DE",
-      country: "United Kingdom",
-      phone: "+44 141 567 8901",
-      email: "lisa.t@email.com"
-    },
-    trackingNumber: "TRK555666777",
-    commission: "£6.45",
-    netAmount: "£36.53"
-  },
-  {
-    id: "ORD006",
-    customer: "James Wilson",
-    email: "james.w@email.com",
-    phone: "+44 131 234 5678",
-    products: [
-      { name: "Shea Butter Hair Care Set", quantity: 1, price: "£24.99" }
-    ],
-    total: "£24.99",
-    status: "in_transit",
-    paymentStatus: "paid",
-    paymentMethod: "PayPal",
-    orderDate: "2024-01-23",
-    deliveryDate: null,
-    deliveryAddress: {
-      streetAddress: "8 Royal Mile",
-      city: "Edinburgh",
-      state: "Scotland",
-      postcode: "EH1 1RE",
-      country: "United Kingdom",
-      phone: "+44 131 234 5678",
-      email: "james.w@email.com",
-      deliveryInstructions: "Please call before delivery"
-    },
-    trackingNumber: "TRK888999000",
-    commission: "£3.75",
-    netAmount: "£21.24"
-  },
-  {
-    id: "ORD007",
-    customer: "Maria Garcia",
-    email: "maria.g@email.com",
-    phone: "+44 29 876 5432",
-    products: [
-      { name: "Traditional Kente Cloth Scarf", quantity: 1, price: "£89.99" },
-      { name: "Moringa Leaf Powder", quantity: 1, price: "£18.50" }
-    ],
-    total: "£108.49",
-    status: "cancelled",
-    paymentStatus: "refunded",
-    paymentMethod: "Credit Card",
-    orderDate: "2024-01-17",
-    deliveryDate: null,
-    deliveryAddress: {
-      streetAddress: "22 Cardiff Bay",
-      city: "Cardiff",
-      state: "Wales",
-      postcode: "CF10 5AL",
-      country: "United Kingdom",
-      phone: "+44 29 876 5432",
-      email: "maria.g@email.com"
-    },
-    trackingNumber: null,
-    commission: "£0.00",
-    netAmount: "£0.00"
+const ORDER_STATUSES = Object.entries(ORDER_STATUS_CONFIG).map(([value, meta]) => ({
+  value,
+  label: meta.label,
+  color: meta.color,
+  icon: meta.icon,
+}));
+
+const formatStatusLabel = (status?: string | null) => {
+  if (!status) return "Pending";
+  return status
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+};
+
+const formatCurrency = (amount: number | null | undefined, currency: string = "GBP") =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(Number(amount ?? 0));
+
+const parseShippingAddress = (address: unknown) => {
+  if (!address) return null;
+  let parsed: unknown = address;
+
+  if (typeof address === "string") {
+    try {
+      parsed = JSON.parse(address);
+    } catch (error) {
+      console.warn("Unable to parse shipping address", error);
+      return null;
+    }
   }
-];
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return null;
+  }
+
+  const record = parsed as Record<string, unknown>;
+  const getString = (value: unknown) =>
+    typeof value === "string" && value.trim().length > 0 ? value : undefined;
+
+  return {
+    name: getString(record.fullName) ?? getString(record.name),
+    street: getString(record.street) ?? getString(record.address1) ?? getString(record.address),
+    apartment: getString(record.apartment) ?? getString(record.address2),
+    city: getString(record.city),
+    state: getString(record.state) ?? getString(record.region),
+    postalCode: getString(record.postalCode) ?? getString(record.zip) ?? getString(record.postcode),
+    country: getString(record.country),
+    phone: getString(record.phone),
+    email: getString(record.email),
+    instructions: getString(record.deliveryInstructions) ?? getString(record.instructions),
+  };
+};
+
+type NormalizedAddress = ReturnType<typeof parseShippingAddress>;
+
+type VendorOrderItem = {
+  name: string;
+  quantity: number;
+  total: number;
+  priceEach: number;
+  totalFormatted: string;
+  priceEachFormatted: string;
+  commissionPercent: number;
+  commissionAmount: number;
+  commissionFormatted: string;
+};
+
+type VendorOrderRow = {
+  id: string;
+  orderNumber: string;
+  status: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  createdAtISO?: string | null;
+  createdAtFormatted: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string | null;
+  items: VendorOrderItem[];
+  subtotalValue: number;
+  subtotalFormatted: string;
+  totalValue: number;
+  totalFormatted: string;
+  shippingCostValue: number;
+  shippingCostFormatted: string;
+  commissionValue: number;
+  commissionFormatted: string;
+  effectiveCommissionPercent: number;
+  netAmountValue: number;
+  netAmountFormatted: string;
+  shippingAddress: NormalizedAddress;
+  notes?: string | null;
+};
+
+type OrderReviewItem = {
+  id: string;
+  rating: number;
+  comment?: string | null;
+  createdAt: string;
+  product: {
+    id: string;
+    name: string;
+    image?: string | null;
+  };
+  customer: {
+    id: string;
+    name: string;
+    email?: string | null;
+  };
+};
+
+type OrderReviewResponse = {
+  success: boolean;
+  data: {
+    orderId: string;
+    orderNumber?: string | null;
+    reviews: OrderReviewItem[];
+    pendingProducts: Array<{
+      productId: string;
+      name: string;
+      image?: string | null;
+    }>;
+  };
+};
+
+const DEFAULT_COMMISSION_PERCENT = 10;
+
+interface ApiOrderProductCategory {
+  commissionRate?: number | null | string;
+  name?: string;
+  id?: string;
+}
+
+interface ApiOrderProduct {
+  name?: string;
+  commissionRate?: number | null | string;
+  category?: ApiOrderProductCategory | null;
+}
+
+interface ApiOrderItem {
+  total?: number | string;
+  price?: number | string;
+  quantity?: number;
+  product?: ApiOrderProduct | null;
+}
+
+interface ApiOrderCustomer {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+}
+
+interface ApiOrder {
+  id: string;
+  orderNumber?: string | null;
+  status?: string | null;
+  paymentStatus?: string | null;
+  paymentMethod?: string | null;
+  createdAt?: string | null;
+  totalAmount?: number | string | null;
+  shippingCost?: number | string | null;
+  shippingAddress?: unknown;
+  notes?: string | null;
+  orderItems?: ApiOrderItem[] | null;
+  customer?: ApiOrderCustomer | null;
+}
+
+const normalizeOrder = (order: ApiOrder): VendorOrderRow => {
+  const shippingAddress = parseShippingAddress(order.shippingAddress);
+  const totalAmount = Number(order.totalAmount ?? 0);
+  const shippingCost = Number(order.shippingCost ?? 0);
+  const subtotal = Math.max(totalAmount - shippingCost, 0);
+  let commissionTotal = 0;
+
+  const items: VendorOrderItem[] = (order.orderItems ?? []).map((item) => {
+    const total = Number(item.total ?? 0);
+    const priceEach = Number(item.price ?? 0);
+    const productRatePercent =
+      item.product?.commissionRate !== undefined && item.product?.commissionRate !== null
+        ? Number(item.product?.commissionRate)
+        : null;
+    const categoryRatePercent =
+      item.product?.category?.commissionRate !== undefined &&
+      item.product?.category?.commissionRate !== null
+        ? Number(item.product?.category?.commissionRate)
+        : null;
+    const appliedPercent =
+      productRatePercent ?? categoryRatePercent ?? DEFAULT_COMMISSION_PERCENT;
+    const commissionAmount = total * (appliedPercent / 100);
+    commissionTotal += commissionAmount;
+
+    return {
+      name: item.product?.name || "Product",
+      quantity: item.quantity || 0,
+      total,
+      priceEach,
+      totalFormatted: formatCurrency(total),
+      priceEachFormatted: formatCurrency(priceEach),
+      commissionPercent: appliedPercent,
+      commissionAmount,
+      commissionFormatted: formatCurrency(commissionAmount),
+    };
+  });
+
+  const effectiveCommissionPercent =
+    subtotal > 0 ? (commissionTotal / subtotal) * 100 : 0;
+  const netAmount = totalAmount - commissionTotal;
+
+  const customerName = [order.customer?.firstName, order.customer?.lastName]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || order.customer?.email || "Customer";
+
+  return {
+    id: order.id,
+    orderNumber: order.orderNumber || order.id,
+    status: order.status || "PENDING",
+    paymentStatus: order.paymentStatus || "PENDING",
+    paymentMethod: order.paymentMethod || "Not specified",
+    createdAtISO: order.createdAt,
+    createdAtFormatted: order.createdAt ? format(new Date(order.createdAt), "dd MMM yyyy") : "—",
+    customerName,
+    customerEmail: order.customer?.email || shippingAddress?.email || "Not provided",
+    customerPhone: shippingAddress?.phone || null,
+    items,
+    subtotalValue: subtotal,
+    subtotalFormatted: formatCurrency(subtotal),
+    totalValue: totalAmount,
+    totalFormatted: formatCurrency(totalAmount),
+    shippingCostValue: shippingCost,
+    shippingCostFormatted: shippingCost > 0 ? formatCurrency(shippingCost) : "Vendor handled",
+    commissionValue: commissionTotal,
+    commissionFormatted: formatCurrency(commissionTotal),
+    effectiveCommissionPercent,
+    netAmountValue: netAmount,
+    netAmountFormatted: formatCurrency(netAmount),
+    shippingAddress,
+    notes: order.notes ?? null,
+  };
+};
 
 export function VendorOrderManagement() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [editingOrder, setEditingOrder] = useState<string | null>(null);
-  const [editingStatus, setEditingStatus] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [editingStatus, setEditingStatus] = useState<string>("");
+  const [selectedOrder, setSelectedOrder] = useState<VendorOrderRow | null>(null);
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
-  const [showAllOrders, setShowAllOrders] = useState(false);
+  const [orderDetailId, setOrderDetailId] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const filteredOrders = vendorOrderData.filter(order => {
-    const matchesSearch = order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.id.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["vendor-orders"],
+    queryFn: async () => {
+      const response = await apiFetch<{
+        success: boolean;
+        data: { orders: ApiOrder[]; pagination: { total: number } };
+        message?: string;
+      }>("/orders?limit=100");
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to load vendor orders");
+      }
+
+      return response.data;
+    },
   });
 
-  const displayedOrders = showAllOrders ? vendorOrderData : filteredOrders;
+  const orders = useMemo(() => (data?.orders ?? []).map(normalizeOrder), [data]);
 
-  const getStatusInfo = (status: string) => {
-    return ORDER_STATUSES.find(s => s.value === status) || ORDER_STATUSES[0];
-  };
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
-  const handleStatusUpdate = (orderId: string, newStatus: string) => {
-    // In a real app, this would make an API call
+  const filteredOrders = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+
+    return orders.filter((order) => {
+      const matchesSearch =
+        !term ||
+        order.orderNumber.toLowerCase().includes(term) ||
+        order.customerName.toLowerCase().includes(term);
+
+    const matchesStatus = statusFilter === "all" || order.status === statusFilter;
+
+    return matchesSearch && matchesStatus;
+  });
+  }, [orders, searchTerm, statusFilter]);
+
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const revenue = orders
+      .filter((order) => order.paymentStatus === "COMPLETED")
+      .reduce((sum, order) => sum + order.totalValue, 0);
+    const inProgress = orders.filter((order) =>
+      ["PENDING", "CONFIRMED", "PROCESSING"].includes(order.status)
+    ).length;
+    const delivered = orders.filter((order) => order.status === "DELIVERED").length;
+    const commission = orders.reduce((sum, order) => sum + order.commissionValue, 0);
+
+    return {
+      totalOrders,
+      revenue,
+      inProgress,
+      delivered,
+      commission,
+    };
+  }, [orders]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [filteredOrders.length, currentPage, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredOrders.length / itemsPerPage));
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredOrders.slice(start, start + itemsPerPage);
+  }, [filteredOrders, currentPage, itemsPerPage]);
+
+  const updateStatus = useMutation({
+    mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
+      const response = await apiFetch<{ success: boolean; data: ApiOrder; message?: string }>(
+        `/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to update order status");
+      }
+
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
     toast({
       title: "Status Updated",
-      description: `Order ${orderId} status updated to ${newStatus.replace('_', ' ')}`,
+        description: `Order ${variables.orderId} updated to ${formatStatusLabel(variables.status)}`,
     });
     setEditingOrder(null);
     setEditingStatus("");
+      queryClient.invalidateQueries({ queryKey: ["vendor-orders"] });
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : "Failed to update order status";
+      toast({
+        title: "Update Failed",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleStatusEdit = (orderId: string, currentStatus: string) => {
+    setEditingOrder(orderId);
+    setEditingStatus(currentStatus);
+  };
+
+  const handleStatusUpdate = (orderId: string) => {
+    if (!editingStatus) {
+      toast({
+        title: "Select Status",
+        description: "Choose a status before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updateStatus.mutate({ orderId, status: editingStatus });
   };
 
   const handleCancelEdit = () => {
@@ -300,58 +454,116 @@ export function VendorOrderManagement() {
     setEditingStatus("");
   };
 
-  const handleViewOrderDetail = (order: any) => {
+  const handleViewOrderDetail = (order: VendorOrderRow) => {
     setSelectedOrder(order);
+    setOrderDetailId(order.id);
     setIsOrderDetailOpen(true);
   };
 
-  const handleViewAllOrders = () => {
-    setShowAllOrders(!showAllOrders);
-    setSearchTerm("");
-    setStatusFilter("all");
-    toast({
-      title: showAllOrders ? "Filtered View" : "All Orders View",
-      description: showAllOrders ? "Showing filtered orders" : "Showing all orders without filters",
-    });
-  };
+  const isUpdatingStatus = updateStatus.isPending;
 
-  const formatCurrency = (amount: string) => {
-    return amount;
-  };
+  const {
+    data: orderReviewData,
+    isLoading: isLoadingOrderReviews,
+    isFetching: isFetchingOrderReviews,
+    error: orderReviewError,
+  } = useQuery({
+    queryKey: ["vendor-order-reviews", orderDetailId],
+    queryFn: async () => {
+      if (!orderDetailId) {
+        throw new Error("Order not specified");
+      }
+      const response = await apiFetch<OrderReviewResponse>(`/reviews/order/${orderDetailId}`);
+      if (!response.success) {
+        throw new Error(response.message || "Failed to load order reviews");
+      }
+      return response.data;
+    },
+    enabled: !!orderDetailId,
+    staleTime: 30_000,
+  });
+
+  const renderStars = (rating: number) =>
+    Array.from({ length: 5 }, (_, index) => (
+      <Star
+        key={index}
+        className={`h-4 w-4 ${
+          index < rating ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"
+        }`}
+      />
+    ));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Order Management</h1>
           <p className="text-muted-foreground">Manage and track your customer orders</p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" disabled>
             <Download className="h-4 w-4 mr-2" />
             Export Orders
-          </Button>
-          <Button 
-            size="sm"
-            onClick={handleViewAllOrders}
-            variant={showAllOrders ? "default" : "outline"}
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            {showAllOrders ? "Show Filtered" : "View All Orders"}
           </Button>
         </div>
       </div>
 
-      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalOrders}</div>
+            <p className="text-xs text-muted-foreground">All orders received</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Completed Revenue</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.revenue)}</div>
+            <p className="text-xs text-muted-foreground">Payments marked as completed</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inProgress}</div>
+            <p className="text-xs text-muted-foreground">Pending fulfilment</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.delivered}</div>
+            <p className="text-xs text-muted-foreground">Completed deliveries</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Commission</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(stats.commission)}</div>
+            <p className="text-xs text-muted-foreground">Aggregate commission retained</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search orders by customer name or order ID..."
+                  placeholder="Search orders by customer or order number..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -372,17 +584,19 @@ export function VendorOrderManagement() {
               </SelectContent>
             </Select>
           </div>
+          {isFetching && (
+            <p className="mt-2 text-xs text-muted-foreground">Refreshing orders…</p>
+          )}
         </CardContent>
       </Card>
 
-      {/* Order Status Legend */}
       <Card>
         <CardHeader>
           <CardTitle>Order Status Guide</CardTitle>
           <CardDescription>Understanding the order workflow</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {ORDER_STATUSES.map((status) => {
               const Icon = status.icon;
               return (
@@ -396,30 +610,24 @@ export function VendorOrderManagement() {
         </CardContent>
       </Card>
 
-      {/* Orders Table */}
       <Card>
         <CardHeader>
-          <CardTitle>
-            Orders ({displayedOrders.length})
-            {showAllOrders && (
-              <Badge variant="secondary" className="ml-2">
-                All Orders View
-              </Badge>
-            )}
-          </CardTitle>
-          <CardDescription>
-            {showAllOrders 
-              ? "Showing all orders without filters" 
-              : "Manage your customer orders and update their status"
-            }
-          </CardDescription>
+          <CardTitle>Orders ({filteredOrders.length})</CardTitle>
+          <CardDescription>Manage your customer orders and update their status</CardDescription>
         </CardHeader>
         <CardContent>
+          {isLoading ? (
+            <div className="py-16 text-center text-muted-foreground">Loading orders…</div>
+          ) : filteredOrders.length === 0 ? (
+            <div className="py-16 text-center text-muted-foreground">
+              No orders match your filters yet.
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Order ID</TableHead>
+                    <TableHead>Order #</TableHead>
                   <TableHead>Customer</TableHead>
                   <TableHead>Products</TableHead>
                   <TableHead>Total</TableHead>
@@ -430,32 +638,37 @@ export function VendorOrderManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {displayedOrders.map((order) => {
-                  const statusInfo = getStatusInfo(order.status);
-                  const StatusIcon = statusInfo.icon;
+                  {paginatedOrders.map((order) => {
+                    const statusInfo = ORDER_STATUSES.find((s) => s.value === order.status);
+                    const StatusIcon = statusInfo?.icon ?? Clock;
                   
                   return (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.id}</TableCell>
+                        <TableCell className="font-medium">{order.orderNumber}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{order.customer}</p>
-                          <p className="text-sm text-muted-foreground">{order.email}</p>
+                            <p className="font-medium">{order.customerName}</p>
+                            <p className="text-sm text-muted-foreground">{order.customerEmail}</p>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          {order.products.map((product, index) => (
+                          {order.items.map((item, index) => (
                             <div key={index} className="text-sm">
-                              {product.quantity}x {product.name}
+                              <p>{item.quantity}× {item.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                Commission: {item.commissionPercent.toFixed(2)}% ({item.commissionFormatted})
+                              </p>
                             </div>
                           ))}
                         </div>
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{formatCurrency(order.total)}</p>
-                          <p className="text-sm text-muted-foreground">Net: {formatCurrency(order.netAmount)}</p>
+                            <p className="font-medium">{order.totalFormatted}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Net: {order.netAmountFormatted}
+                            </p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -475,40 +688,34 @@ export function VendorOrderManagement() {
                             </Select>
                             <Button
                               size="sm"
-                              onClick={() => handleStatusUpdate(order.id, editingStatus)}
+                                onClick={() => handleStatusUpdate(order.id)}
+                                disabled={isUpdatingStatus}
                             >
                               <Save className="h-3 w-3" />
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={handleCancelEdit}
-                            >
+                              <Button size="sm" variant="ghost" onClick={handleCancelEdit}>
                               <X className="h-3 w-3" />
                             </Button>
                           </div>
                         ) : (
                           <div className="flex items-center space-x-2">
-                            <Badge className={statusInfo.color}>
+                              <Badge className={statusInfo?.color ?? "bg-muted text-foreground"}>
                               <StatusIcon className="h-3 w-3 mr-1" />
-                              {statusInfo.label}
+                                {formatStatusLabel(order.status)}
                             </Badge>
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => {
-                                setEditingOrder(order.id);
-                                setEditingStatus(order.status);
-                              }}
+                                onClick={() => handleStatusEdit(order.id, order.status)}
                             >
                               <Edit className="h-3 w-3" />
                             </Button>
                           </div>
                         )}
                       </TableCell>
-                      <TableCell>{order.orderDate}</TableCell>
+                        <TableCell>{order.createdAtFormatted}</TableCell>
                       <TableCell>
-                        <span className="text-green-600 font-medium">{formatCurrency(order.commission)}</span>
+                          <span className="text-green-600 font-medium">{order.commissionFormatted}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
@@ -519,9 +726,22 @@ export function VendorOrderManagement() {
                           >
                             <Eye className="h-3 w-3" />
                           </Button>
-                          <Button size="sm" variant="outline">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => (window.location.href = `mailto:${order.customerEmail}`)}
+                            >
                             <Mail className="h-3 w-3" />
                           </Button>
+                            {order.customerPhone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => (window.location.href = `tel:${order.customerPhone}`)}
+                              >
+                                <Phone className="h-3 w-3" />
+                              </Button>
+                            )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -530,25 +750,37 @@ export function VendorOrderManagement() {
               </TableBody>
             </Table>
           </div>
+          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredOrders.length}
+            itemsPerPage={itemsPerPage}
+          />
         </CardContent>
       </Card>
 
-      {/* Order Detail Dialog */}
-      <Dialog open={isOrderDetailOpen} onOpenChange={setIsOrderDetailOpen}>
+      <Dialog
+        open={isOrderDetailOpen}
+        onOpenChange={(open) => {
+          setIsOrderDetailOpen(open);
+          if (!open) {
+            setOrderDetailId(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
               <ShoppingCart className="h-5 w-5" />
-              <span>Order Details - {selectedOrder?.id}</span>
+              <span>Order Details - {selectedOrder?.orderNumber}</span>
             </DialogTitle>
-            <DialogDescription>
-              Complete order information and customer details
-            </DialogDescription>
+            <DialogDescription>Complete order information and customer details</DialogDescription>
           </DialogHeader>
           
           {selectedOrder && (
             <div className="space-y-6">
-              {/* Order Summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card>
                   <CardHeader>
@@ -557,32 +789,34 @@ export function VendorOrderManagement() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center space-x-2">
                       <Package className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Order ID:</strong> {selectedOrder.id}</span>
+                      <span>
+                        <strong>Order ID:</strong> {selectedOrder.orderNumber}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Order Date:</strong> {selectedOrder.orderDate}</span>
+                      <span>
+                        <strong>Order Date:</strong> {selectedOrder.createdAtFormatted}
+                      </span>
                     </div>
-                    {selectedOrder.deliveryDate && (
                       <div className="flex items-center space-x-2">
                         <Truck className="h-4 w-4 text-muted-foreground" />
-                        <span><strong>Delivery Date:</strong> {selectedOrder.deliveryDate}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2">
-                      <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Payment Method:</strong> {selectedOrder.paymentMethod}</span>
+                      <span>
+                        <strong>Shipping:</strong> {selectedOrder.shippingCostFormatted}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <CheckCircle className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Payment Status:</strong> {selectedOrder.paymentStatus}</span>
+                      <span>
+                        <strong>Payment Status:</strong> {formatStatusLabel(selectedOrder.paymentStatus)}
+                      </span>
                     </div>
-                    {selectedOrder.trackingNumber && (
                       <div className="flex items-center space-x-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span><strong>Tracking:</strong> {selectedOrder.trackingNumber}</span>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span>
+                        <strong>Payment Method:</strong> {selectedOrder.paymentMethod}
+                      </span>
                       </div>
-                    )}
                   </CardContent>
                 </Card>
 
@@ -593,65 +827,101 @@ export function VendorOrderManagement() {
                   <CardContent className="space-y-3">
                     <div className="flex items-center space-x-2">
                       <User className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Name:</strong> {selectedOrder.customer}</span>
+                      <span>
+                        <strong>Name:</strong> {selectedOrder.customerName}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Email:</strong> {selectedOrder.email}</span>
+                      <span>
+                        <strong>Email:</strong> {selectedOrder.customerEmail}
+                      </span>
                     </div>
+                    {selectedOrder.customerPhone && (
                     <div className="flex items-center space-x-2">
                       <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span><strong>Phone:</strong> {selectedOrder.phone}</span>
+                        <span>
+                          <strong>Phone:</strong> {selectedOrder.customerPhone}
+                        </span>
                     </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Delivery Address */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Delivery Address</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    <p>{selectedOrder.deliveryAddress.streetAddress}</p>
-                    {selectedOrder.deliveryAddress.apartment && (
-                      <p>{selectedOrder.deliveryAddress.apartment}</p>
-                    )}
-                    <p>{selectedOrder.deliveryAddress.city}, {selectedOrder.deliveryAddress.state}</p>
-                    <p>{selectedOrder.deliveryAddress.postcode}</p>
-                    <p>{selectedOrder.deliveryAddress.country}</p>
-                    {selectedOrder.deliveryAddress.deliveryInstructions && (
+                  {selectedOrder.shippingAddress ? (
+                    <div className="space-y-2 text-sm">
+                      {selectedOrder.shippingAddress.name && <p>{selectedOrder.shippingAddress.name}</p>}
+                      {selectedOrder.shippingAddress.street && <p>{selectedOrder.shippingAddress.street}</p>}
+                      {selectedOrder.shippingAddress.apartment && <p>{selectedOrder.shippingAddress.apartment}</p>}
+                      {(selectedOrder.shippingAddress.city || selectedOrder.shippingAddress.state) && (
+                        <p>
+                          {[selectedOrder.shippingAddress.city, selectedOrder.shippingAddress.state]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {(selectedOrder.shippingAddress.postalCode || selectedOrder.shippingAddress.country) && (
+                        <p>
+                          {[selectedOrder.shippingAddress.postalCode, selectedOrder.shippingAddress.country]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </p>
+                      )}
+                      {selectedOrder.shippingAddress.instructions && (
                       <div className="mt-3 p-3 bg-muted/20 rounded-lg">
                         <p className="text-sm font-medium">Delivery Instructions:</p>
-                        <p className="text-sm text-muted-foreground">{selectedOrder.deliveryAddress.deliveryInstructions}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedOrder.shippingAddress.instructions}
+                          </p>
                       </div>
                     )}
                   </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No shipping address available.</p>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Shipping is arranged directly with the vendor after the order is confirmed.
+                  </p>
                 </CardContent>
               </Card>
 
-              {/* Products */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Products</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {selectedOrder.products.map((product: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
+                    {selectedOrder.items.map((item, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between p-3 bg-muted/20 rounded-lg"
+                      >
                         <div>
-                          <p className="font-medium">{product.name}</p>
-                          <p className="text-sm text-muted-foreground">Quantity: {product.quantity}</p>
+                          <p className="font-medium">{item.name}</p>
+                          <div className="text-sm text-muted-foreground space-y-1">
+                            <p>Quantity: {item.quantity}</p>
+                            <p>Commission Rate: {item.commissionPercent.toFixed(2)}%</p>
+                            <p>Commission: {item.commissionFormatted}</p>
                         </div>
-                        <p className="font-bold">{product.price}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-medium">{item.totalFormatted}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.priceEachFormatted} each
+                          </p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Financial Summary */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Financial Summary</CardTitle>
@@ -660,45 +930,118 @@ export function VendorOrderManagement() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span>Subtotal:</span>
-                      <span className="font-medium">{selectedOrder.total}</span>
+                      <span className="font-medium">{selectedOrder.subtotalFormatted}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Shipping:</span>
+                      <span className="font-medium">{selectedOrder.shippingCostFormatted}</span>
                     </div>
                     <div className="flex items-center justify-between text-green-600">
-                      <span>Platform Commission:</span>
-                      <span className="font-medium">-{selectedOrder.commission}</span>
+                      <span>
+                        Platform Commission ({selectedOrder.effectiveCommissionPercent.toFixed(2)}%)
+                      </span>
+                      <span className="font-medium">-{selectedOrder.commissionFormatted}</span>
                     </div>
                     <div className="border-t pt-3">
                       <div className="flex items-center justify-between font-bold text-lg">
                         <span>Net Amount:</span>
-                        <span>{selectedOrder.netAmount}</span>
+                        <span>{selectedOrder.netAmountFormatted}</span>
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Order Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Order Notes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedOrder.notes || 'No additional notes for this order.'}
+                  </p>
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Order Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex items-center space-x-3">
                     {(() => {
-                      const statusInfo = getStatusInfo(selectedOrder.status);
-                      const StatusIcon = statusInfo.icon;
+                    const statusInfo = ORDER_STATUSES.find((s) => s.value === selectedOrder.status);
+                    const StatusIcon = statusInfo?.icon ?? Clock;
                       return (
-                        <>
-                          <Badge className={statusInfo.color}>
+                      <div className="flex items-center space-x-3">
+                        <Badge className={statusInfo?.color ?? "bg-muted text-foreground"}>
                             <StatusIcon className="h-3 w-3 mr-1" />
-                            {statusInfo.label}
+                          {formatStatusLabel(selectedOrder.status)}
                           </Badge>
                           <span className="text-sm text-muted-foreground">
-                            Current status: {selectedOrder.status.replace('_', ' ')}
+                          Current status: {formatStatusLabel(selectedOrder.status)}
                           </span>
-                        </>
+                      </div>
                       );
                     })()}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Customer Feedback</CardTitle>
+                  <CardDescription>
+                    Ratings and comments submitted by the customer for this order.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {isLoadingOrderReviews || isFetchingOrderReviews ? (
+                    <div className="flex items-center justify-center py-6 text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                      <span>Loading reviews…</span>
                   </div>
+                  ) : orderReviewError ? (
+                    <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">
+                      {(orderReviewError as Error).message ?? "Unable to load reviews for this order."}
+                    </div>
+                  ) : orderReviewData && orderReviewData.reviews.length > 0 ? (
+                    <div className="space-y-4">
+                      {orderReviewData.reviews.map((review) => (
+                        <div key={review.id} className="rounded-lg border border-muted/40 p-4">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">
+                                {review.product.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {review.customer.name} • {format(new Date(review.createdAt), "dd MMM yyyy")}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              {renderStars(review.rating)}
+                            </div>
+                          </div>
+                          {review.comment && (
+                            <p className="mt-3 text-sm text-muted-foreground">{review.comment}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No reviews have been submitted for this order yet.
+                    </p>
+                  )}
+
+                  {orderReviewData && orderReviewData.pendingProducts.length > 0 && (
+                    <div className="rounded-md bg-muted/20 p-3 text-sm text-muted-foreground">
+                      <p className="font-medium text-foreground mb-2">Awaiting Feedback</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        {orderReviewData.pendingProducts.map((product) => (
+                          <li key={product.productId}>{product.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

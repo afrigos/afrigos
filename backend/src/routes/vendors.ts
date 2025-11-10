@@ -4,34 +4,20 @@ import { body, validationResult } from 'express-validator';
 import { requireVendor, requireAdmin } from '../middleware/auth';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import cloudinary from '../config/cloudinary';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
 // Configure multer for document uploads
-const documentStorage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/documents';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const documentUpload = multer({ 
-  storage: documentStorage,
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
   fileFilter: (req, file, cb) => {
     const allowedTypes = /pdf|jpg|jpeg|png/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype);
-    
+
     if (mimetype && extname) {
       return cb(null, true);
     } else {
@@ -39,6 +25,43 @@ const documentUpload = multer({
     }
   }
 });
+
+const uploadDocumentToCloudinary = (buffer: Buffer, vendorId: string, type: string) => {
+  return new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
+    cloudinary.uploader
+      .upload_stream(
+        {
+          folder: `afrigos/vendors/${vendorId}/documents`,
+          resource_type: 'auto',
+          public_id: `${type.toLowerCase()}-${Date.now()}`
+        },
+        (error, result) => {
+          if (error || !result) {
+            reject(error || new Error('Failed to upload document'));
+          } else {
+            resolve({ secure_url: result.secure_url, public_id: result.public_id });
+          }
+        }
+      )
+      .end(buffer);
+  });
+};
+
+const deleteFromCloudinary = async (fileUrl: string) => {
+  if (!fileUrl || (!fileUrl.includes('cloudinary.com') && !fileUrl.includes('res.cloudinary.com'))) {
+    return;
+  }
+
+  try {
+    const urlParts = fileUrl.split('/');
+    const fileName = urlParts[urlParts.length - 1];
+    const folder = urlParts[urlParts.length - 2];
+    const publicIdWithExt = `${folder}/${fileName}`.split('.')[0];
+    await cloudinary.uploader.destroy(publicIdWithExt);
+  } catch (error) {
+    console.warn('Failed to remove previous Cloudinary asset', error);
+  }
+};
 
 // @desc    Get vendor profile
 // @route   GET /api/v1/vendors/profile
@@ -56,7 +79,19 @@ router.get('/profile', requireVendor, async (req: any, res: any) => {
             lastName: true,
             avatar: true,
             phone: true,
-            isVerified: true
+            isVerified: true,
+            addresses: {
+              select: {
+                id: true,
+                street: true,
+                city: true,
+                state: true,
+                postalCode: true,
+                country: true,
+                type: true,
+                isDefault: true
+              }
+            }
           }
         },
         products: {
@@ -87,9 +122,37 @@ router.get('/profile', requireVendor, async (req: any, res: any) => {
       });
     }
 
+    const [financialSummaryRaw, pendingOrders] = await Promise.all([
+      prisma.vendorEarning.aggregate({
+        where: { vendorId: vendor.id },
+        _sum: {
+          amount: true,
+          commission: true,
+          netAmount: true
+        }
+      }),
+      prisma.order.aggregate({
+        where: {
+          vendorId: vendor.id,
+          status: { in: ['PENDING', 'CONFIRMED', 'PROCESSING'] }
+        },
+        _sum: { totalAmount: true }
+      })
+    ]);
+
+    const financialSummary = {
+      totalGross: Number(financialSummaryRaw._sum.amount ?? 0),
+      totalCommission: Number(financialSummaryRaw._sum.commission ?? 0),
+      totalNet: Number(financialSummaryRaw._sum.netAmount ?? 0),
+      pendingOrderValue: Number(pendingOrders._sum?.totalAmount ?? 0)
+    };
+
     res.json({
       success: true,
-      data: vendor
+      data: {
+        ...vendor,
+        financialSummary
+      }
     });
   } catch (error) {
     console.error('Get vendor profile error:', error);
@@ -106,11 +169,14 @@ router.get('/profile', requireVendor, async (req: any, res: any) => {
 router.post('/profile', requireVendor, [
   body('businessName').trim().notEmpty(),
   body('businessType').trim().notEmpty(),
-  body('description').trim().optional(),
-  body('website').isURL().optional(),
-  body('foundedYear').isNumeric().optional(),
-  body('employees').trim().optional(),
-  body('revenue').trim().optional()
+  body('businessNumber').optional(),
+  body('taxId').optional(),
+  body('description').optional(),
+  body('website').optional(),
+  body('foundedYear').optional(),
+  body('employees').optional(),
+  body('revenue').optional(),
+  body('socialMedia').optional()
 ], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
@@ -133,7 +199,8 @@ router.post('/profile', requireVendor, [
       employees,
       revenue,
       socialMedia,
-      categoryId
+      categoryId,
+      phone
     } = req.body;
 
     // Check if vendor profile already exists
@@ -147,13 +214,13 @@ router.post('/profile', requireVendor, [
       const updateData: any = {
         businessName,
         businessType,
-        businessNumber,
-        taxId,
-        description,
-        website,
-        foundedYear,
-        employees,
-        revenue,
+        businessNumber: businessNumber ?? null,
+        taxId: taxId ?? null,
+        description: description ?? null,
+        website: website ?? null,
+        foundedYear: foundedYear ?? null,
+        employees: employees ?? null,
+        revenue: revenue ?? null,
         socialMedia: socialMedia ? JSON.parse(socialMedia) : null
       };
       
@@ -183,13 +250,13 @@ router.post('/profile', requireVendor, [
           userId: req.user.id,
           businessName,
           businessType,
-          businessNumber,
-          taxId,
-          description,
-          website,
-          foundedYear,
-          employees,
-          revenue,
+          businessNumber: businessNumber ?? null,
+          taxId: taxId ?? null,
+          description: description ?? null,
+          website: website ?? null,
+          foundedYear: foundedYear ?? null,
+          employees: employees ?? null,
+          revenue: revenue ?? null,
           socialMedia: socialMedia ? JSON.parse(socialMedia) : null
         },
         include: {
@@ -205,6 +272,62 @@ router.post('/profile', requireVendor, [
           }
         }
       });
+    if (phone !== undefined) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: {
+          phone: phone || null
+        }
+      });
+
+      vendor = await prisma.vendorProfile.findUnique({
+        where: { userId: req.user.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              phone: true,
+              isVerified: true,
+              addresses: {
+                select: {
+                  id: true,
+                  street: true,
+                  city: true,
+                  state: true,
+                  postalCode: true,
+                  country: true,
+                  type: true,
+                  isDefault: true
+                }
+              }
+            }
+          },
+          products: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              status: true,
+              isActive: true,
+              createdAt: true
+            }
+          },
+          documents: true,
+          _count: {
+            select: {
+              products: true,
+              orders: true,
+              reviews: true
+            }
+          }
+        }
+      });
+    }
+
     }
 
     res.status(201).json({
@@ -569,13 +692,31 @@ router.post('/documents', requireVendor, documentUpload.single('file'), async (r
       }
     });
 
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid file upload'
+      });
+    }
+
+    const uploadResult = await uploadDocumentToCloudinary(
+      req.file.buffer,
+      vendorProfile.id,
+      type
+    );
+
     let document;
     if (existingDoc) {
       // Update existing document
+      if (existingDoc.url) {
+        await deleteFromCloudinary(existingDoc.url).catch(() => undefined);
+      }
+
       document = await prisma.vendorDocument.update({
         where: { id: existingDoc.id },
         data: {
-          url: `/uploads/documents/${req.file.filename}`,
+          name: req.file.originalname || existingDoc.name,
+          url: uploadResult.secure_url,
           status: 'PENDING',
           uploadedAt: new Date()
         }
@@ -587,7 +728,7 @@ router.post('/documents', requireVendor, documentUpload.single('file'), async (r
           vendorId: vendorProfile.id,
           name: req.file.originalname,
           type: type as any,
-          url: `/uploads/documents/${req.file.filename}`,
+          url: uploadResult.secure_url,
           status: 'PENDING'
         }
       });

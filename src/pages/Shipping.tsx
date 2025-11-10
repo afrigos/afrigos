@@ -159,7 +159,7 @@ export default function Shipping() {
               <div>
                 <h3 className="font-semibold mb-2">Need Help?</h3>
                 <p className="text-muted-foreground">
-                  If you have questions about your shipment or experience any issues, please contact our customer support team at <a href="mailto:support@afrigos.com" className="text-primary hover:underline">support@afrigos.com</a> or visit our <a href="/contact" className="text-primary hover:underline">Contact Us</a> page.
+                  If you have questions about your shipment or experience any issues, please contact our customer support team at <a href="mailto:enquiries@afrigos.com" className="text-primary hover:underline">enquiries@afrigos.com</a> or visit our <a href="/contact" className="text-primary hover:underline">Contact Us</a> page.
                 </p>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,7 @@ import {
   CheckCircle2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Pagination } from "@/components/ui/pagination";
 
 // Product sourcing options
 const SOURCING_OPTIONS = [
@@ -234,6 +235,26 @@ export function VendorProductManagement() {
     return matchesSearch && matchesCategory && matchesSourcing && matchesStatus;
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, sourcingFilter, statusFilter]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage);
+    }
+  }, [filteredProducts.length, currentPage, itemsPerPage]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredProducts.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage]);
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'approved': return { color: 'bg-green-100 text-green-800', icon: CheckCircle };
@@ -409,14 +430,14 @@ export function VendorProductManagement() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Product Management</h1>
-          <p className="text-muted-foreground">Manage your product catalog and inventory</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-bold text-foreground md:text-3xl">Product Management</h1>
+          <p className="text-sm text-muted-foreground md:text-base">Manage your product catalog and inventory</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               Add Product
             </Button>
@@ -429,7 +450,7 @@ export function VendorProductManagement() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium">Product Name *</label>
                   <Input
@@ -454,8 +475,8 @@ export function VendorProductManagement() {
                   </Select>
                 </div>
               </div>
-              
-                             <div className="grid grid-cols-3 gap-4">
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                  <div>
                    <label className="text-sm font-medium">Price *</label>
                    <Input
@@ -624,7 +645,7 @@ export function VendorProductManagement() {
                {/* Product Specifications */}
                <div className="space-y-4">
                  <h4 className="font-medium">Product Specifications</h4>
-                 <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                    <div>
                      <label className="text-sm font-medium">Weight</label>
                      <Input
@@ -699,8 +720,8 @@ export function VendorProductManagement() {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex items-center space-x-4">
-            <div className="flex-1">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="w-full lg:max-w-sm">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -711,43 +732,45 @@ export function VendorProductManagement() {
                 />
               </div>
             </div>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {PRODUCT_CATEGORIES.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={sourcingFilter} onValueChange={setSourcingFilter}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Sourcing" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sourcing</SelectItem>
-                {SOURCING_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="approved">Approved</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap lg:items-center lg:gap-3">
+              <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                <SelectTrigger className="w-full sm:min-w-[180px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {PRODUCT_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={sourcingFilter} onValueChange={setSourcingFilter}>
+                <SelectTrigger className="w-full sm:min-w-[160px]">
+                  <SelectValue placeholder="Sourcing" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sourcing</SelectItem>
+                  {SOURCING_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:min-w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -783,118 +806,234 @@ export function VendorProductManagement() {
           <CardDescription>Manage your product catalog and inventory</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-                             <TableHeader>
-                 <TableRow>
-                   <TableHead>Product</TableHead>
-                   <TableHead>Category</TableHead>
-                   <TableHead>Sourcing</TableHead>
-                   <TableHead>Price</TableHead>
-                   <TableHead>Stock</TableHead>
-                   <TableHead>Status</TableHead>
-                   <TableHead>Compliance</TableHead>
-                   <TableHead>Performance</TableHead>
-                   <TableHead>Actions</TableHead>
-                 </TableRow>
-               </TableHeader>
-              <TableBody>
-                {filteredProducts.map((product) => {
+          {filteredProducts.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              No products match your filters yet. Adjust your search or add a new product.
+            </div>
+          ) : (
+            <>
+              <div className="hidden overflow-x-auto rounded-md border md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Product</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Sourcing</TableHead>
+                      <TableHead>Price</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Compliance</TableHead>
+                      <TableHead>Performance</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedProducts.map((product) => {
+                      const statusInfo = getStatusInfo(product.status);
+                      const StatusIcon = statusInfo.icon;
+                      const sourcingInfo = getSourcingInfo(product.sourcing);
+                      const SourcingIcon = sourcingInfo.icon;
+
+                      return (
+                        <TableRow key={product.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                                <Image className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{product.name}</p>
+                                <p className="text-sm text-muted-foreground">ID: {product.id}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{product.category}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <SourcingIcon className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm">{sourcingInfo.label}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{product.price}</TableCell>
+                          <TableCell>
+                            <span className={product.stock < 10 ? 'text-red-600 font-medium' : ''}>
+                              {product.stock}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={`${statusInfo.color} capitalize`}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {product.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {product.compliance && (
+                                <>
+                                  <div className="flex items-center space-x-1">
+                                    <div className={`h-2 w-2 rounded-full ${
+                                      product.compliance.foodSafety === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
+                                    }`} />
+                                    <span className="text-xs">Food Safety</span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className={`h-2 w-2 rounded-full ${
+                                      product.compliance.labeling === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
+                                    }`} />
+                                    <span className="text-xs">Labeling</span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center space-x-1">
+                                <Star className="h-3 w-3 fill-current text-yellow-400" />
+                                <span className="text-sm">{product.rating}</span>
+                                <span className="text-xs text-muted-foreground">({product.reviews})</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {product.sales} sales • {product.revenue}
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button size="sm" variant="outline" onClick={() => handleEditProduct(product)}>
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline">
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {paginatedProducts.map((product) => {
                   const statusInfo = getStatusInfo(product.status);
                   const StatusIcon = statusInfo.icon;
                   const sourcingInfo = getSourcingInfo(product.sourcing);
                   const SourcingIcon = sourcingInfo.icon;
-                  
+
                   return (
-                    <TableRow key={product.id}>
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
-                            <Image className="h-5 w-5 text-muted-foreground" />
-                          </div>
+                    <div key={product.id} className="rounded-lg border bg-card p-4 shadow-sm">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <p className="font-medium">{product.name}</p>
-                            <p className="text-sm text-muted-foreground">ID: {product.id}</p>
+                            <p className="text-base font-semibold text-foreground">{product.name}</p>
+                            <p className="text-xs text-muted-foreground">ID: {product.id}</p>
+                          </div>
+                          <Badge className={`${statusInfo.color} capitalize w-fit`}>
+                            <StatusIcon className="mr-1 h-3 w-3" />
+                            {product.status}
+                          </Badge>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {product.category}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <SourcingIcon className="h-4 w-4 text-muted-foreground" />
+                            <span>{sourcingInfo.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium text-foreground">{product.price}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className={product.stock < 10 ? 'text-red-600 font-medium' : 'text-foreground'}>
+                              {product.stock} in stock
+                            </span>
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{product.category}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <SourcingIcon className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{sourcingInfo.label}</span>
+
+                        <div className="flex flex-col gap-2 text-xs">
+                          <span className="font-medium text-foreground">Compliance</span>
+                          {product.compliance ? (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`h-2 w-2 rounded-full ${
+                                  product.compliance.foodSafety === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
+                                }`} />
+                                <span>Food Safety</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className={`h-2 w-2 rounded-full ${
+                                  product.compliance.labeling === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
+                                }`} />
+                                <span>Labeling</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">No compliance data</span>
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="font-medium">{product.price}</TableCell>
-                      <TableCell>
-                        <span className={product.stock < 10 ? 'text-red-600 font-medium' : ''}>
-                          {product.stock}
-                        </span>
-                      </TableCell>
-                                             <TableCell>
-                         <Badge className={statusInfo.color}>
-                           <StatusIcon className="h-3 w-3 mr-1" />
-                           {product.status}
-                         </Badge>
-                       </TableCell>
-                       <TableCell>
-                         <div className="space-y-1">
-                           {product.compliance && (
-                             <>
-                               <div className="flex items-center space-x-1">
-                                 <div className={`w-2 h-2 rounded-full ${
-                                   product.compliance.foodSafety === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
-                                 }`} />
-                                 <span className="text-xs">Food Safety</span>
-                               </div>
-                               <div className="flex items-center space-x-1">
-                                 <div className={`w-2 h-2 rounded-full ${
-                                   product.compliance.labeling === 'complete' ? 'bg-green-500' : 'bg-yellow-500'
-                                 }`} />
-                                 <span className="text-xs">Labeling</span>
-                               </div>
-                             </>
-                           )}
-                         </div>
-                       </TableCell>
-                       <TableCell>
-                         <div className="space-y-1">
-                           <div className="flex items-center space-x-1">
-                             <Star className="h-3 w-3 fill-current text-yellow-400" />
-                             <span className="text-sm">{product.rating}</span>
-                             <span className="text-xs text-muted-foreground">({product.reviews})</span>
-                           </div>
-                           <div className="text-xs text-muted-foreground">
-                             {product.sales} sales • {product.revenue}
-                           </div>
-                         </div>
-                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button size="sm" variant="outline" onClick={() => handleEditProduct(product)}>
-                            <Edit className="h-3 w-3" />
+
+                        <div className="flex flex-wrap items-center gap-3 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 fill-current text-yellow-400" />
+                            <span>{product.rating}</span>
+                            <span className="text-xs text-muted-foreground">({product.reviews} reviews)</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {product.sales} sales • {product.revenue}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="flex-1 min-w-[120px]" onClick={() => handleEditProduct(product)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit
                           </Button>
-                          <Button size="sm" variant="outline">
-                            <Eye className="h-3 w-3" />
+                          <Button size="sm" variant="outline" className="flex-1 min-w-[120px]">
+                            <Eye className="mr-2 h-4 w-4" />
+                            View
                           </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 min-w-[120px] text-red-600 hover:text-red-700"
                             onClick={() => handleDeleteProduct(product.id)}
-                            className="text-red-600 hover:text-red-700"
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
+              </div>
+            </>
+          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredProducts.length}
+            itemsPerPage={itemsPerPage}
+          />
         </CardContent>
       </Card>
 
@@ -909,7 +1048,7 @@ export function VendorProductManagement() {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <label className="text-sm font-medium">Product Name</label>
                   <Input
@@ -933,8 +1072,8 @@ export function VendorProductManagement() {
                   </Select>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-3 gap-4">
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
                   <label className="text-sm font-medium">Price</label>
                   <Input

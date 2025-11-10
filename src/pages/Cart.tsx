@@ -1,215 +1,198 @@
-import { useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from "lucide-react";
-import { BACKEND_URL } from "@/lib/api-config";
-import { useToast } from "@/hooks/use-toast";
+import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react";
 
-export default function Cart() {
+type QuantityMap = Record<string, number>;
+
+const formatCurrency = (amount: number, currency: string = "GBP") =>
+  new Intl.NumberFormat("en-GB", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 2,
+  }).format(amount);
+
+const Cart = () => {
   const navigate = useNavigate();
-  const { items, removeFromCart, updateQuantity, getCartTotal, clearCart } = useCart();
-  const { toast } = useToast();
+  const { items, updateItemQuantity, removeFromCart, clearCart, getCartTotal } = useCart();
+  const [pendingQuantities, setPendingQuantities] = useState<QuantityMap>({});
+  const hasItems = items.length > 0;
+
+  const handleQuantityChange = (productId: string, rawValue: string) => {
+    const parsed = Number(rawValue);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      return;
+    }
+
+    setPendingQuantities((prev) => ({
+      ...prev,
+      [productId]: parsed,
+    }));
+
+    updateItemQuantity(productId, parsed);
+  };
+
+  const handleRemove = (productId: string) => {
+    removeFromCart(productId);
+  };
 
   const subtotal = getCartTotal();
-  const shipping = 5.99; // Standard shipping fee
-  const total = subtotal + shipping;
-
-  const handleQuantityChange = (itemId: string, newQuantity: number) => {
-    updateQuantity(itemId, newQuantity);
-  };
-
-  const handleRemoveItem = (itemId: string, itemName: string) => {
-    removeFromCart(itemId);
-    toast({
-      title: "Item removed",
-      description: `${itemName} has been removed from your cart.`,
-    });
-  };
-
-  const handleClearCart = () => {
-    clearCart();
-    toast({
-      title: "Cart cleared",
-      description: "All items have been removed from your cart.",
-    });
-  };
-
-  if (items.length === 0) {
-    return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-16">
-          <div className="max-w-md mx-auto text-center">
-            <ShoppingBag className="h-24 w-24 mx-auto mb-6 text-muted-foreground opacity-50" />
-            <h2 className="text-3xl font-bold mb-4">Your cart is empty</h2>
-            <p className="text-muted-foreground mb-8">
-              Looks like you haven't added anything to your cart yet.
-            </p>
-            <Button onClick={() => navigate('/products')} size="lg">
-              Start Shopping
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const shippingCost = 0;
+  const total = subtotal + shippingCost;
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold">Shopping Cart</h1>
-          {items.length > 0 && (
-            <Button variant="ghost" onClick={handleClearCart} className="text-destructive">
-              Clear Cart
+      <div className="container mx-auto px-4 py-16">
+        <div className="mb-10 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Your Cart</h1>
+            <p className="text-muted-foreground">Review your items before checking out.</p>
+          </div>
+          {hasItems && (
+            <Button variant="outline" onClick={clearCart}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear cart
             </Button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Cart Items */}
-          <div className="lg:col-span-2 space-y-4">
-            {items.map((item) => {
-              const imageUrl = item.image.startsWith('http') 
-                ? item.image 
-                : `${BACKEND_URL}${item.image}`;
-              
-              return (
-                <div
-                  key={item.id}
-                  className="flex gap-4 p-4 border rounded-lg bg-card hover:shadow-md transition-shadow"
-                >
-                  <div className="w-24 h-24 flex-shrink-0 bg-muted rounded-lg overflow-hidden">
-                    <img
-                      src={imageUrl}
-                      alt={item.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                      }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold mb-1 line-clamp-2">{item.name}</h3>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {item.vendor.businessName}
-                        </p>
-                        <div className="flex items-center gap-4">
-                          <span className="font-bold text-primary">
-                            £{item.price.toFixed(2)}
-                          </span>
-                          {item.comparePrice && item.comparePrice > item.price && (
-                            <span className="text-sm text-muted-foreground line-through">
-                              £{item.comparePrice.toFixed(2)}
-                            </span>
-                          )}
+        {hasItems ? (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+            <Card className="border-0 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <ShoppingBag className="h-5 w-5 text-primary" />
+                  Items in Cart
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-col gap-4 border-b pb-6 last:border-b-0 last:pb-0 md:flex-row"
+                  >
+                    <div className="flex-1 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <Link
+                            to={`/product/${item.id}`}
+                            className="text-lg font-semibold text-foreground hover:text-primary"
+                          >
+                            {item.name}
+                          </Link>
+                          <div className="text-sm text-muted-foreground">
+                            {item.vendorName ? `Sold by ${item.vendorName}` : "Marketplace vendor"}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(item.id)}
+                          className="text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove ${item.name} from cart`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3">
+                          <label htmlFor={`quantity-${item.id}`} className="text-sm text-muted-foreground">
+                            Quantity
+                          </label>
+                          <Input
+                            id={`quantity-${item.id}`}
+                            type="number"
+                            min={1}
+                            value={pendingQuantities[item.id] ?? item.quantity}
+                            onChange={(event) => handleQuantityChange(item.id, event.target.value)}
+                            className="w-24"
+                          />
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm text-muted-foreground">
+                            Unit price: {formatCurrency(item.price)}
+                          </div>
+                          <div className="text-lg font-semibold text-foreground">
+                            {formatCurrency(item.price * item.quantity)}
+                          </div>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveItem(item.id, item.name)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between mt-4">
-                      <div className="flex items-center border rounded-md">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleQuantityChange(item.id, item.quantity - 1)}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        <span className="w-12 text-center font-medium">{item.quantity}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => handleQuantityChange(item.id, item.quantity + 1)}
-                          disabled={item.quantity >= item.stock}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-semibold">
-                          £{(item.price * item.quantity).toFixed(2)}
-                        </p>
-                        {item.quantity > 1 && (
-                          <p className="text-xs text-muted-foreground">
-                            £{item.price.toFixed(2)} each
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    {item.quantity >= item.stock && (
-                      <p className="text-xs text-amber-600 mt-2">
-                        Maximum quantity reached
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
 
-          {/* Order Summary */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-24 bg-card border rounded-lg p-6 space-y-6">
-              <h2 className="text-xl font-bold">Order Summary</h2>
-              
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal ({items.reduce((sum, item) => sum + item.quantity, 0)} items)</span>
-                  <span className="font-medium">£{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Shipping</span>
-                  <span className="font-medium">
-                    {shipping === 0 ? (
-                      <Badge variant="secondary" className="bg-green-100 text-green-800">
-                        FREE
-                      </Badge>
-                    ) : (
-                      `£${shipping.toFixed(2)}`
-                    )}
-                  </span>
-                </div>
-                <div className="border-t pt-3">
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span className="text-primary">£{total.toFixed(2)}</span>
+                      {item.availableStock !== undefined && item.availableStock < item.quantity && (
+                        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          Only {item.availableStock} left in stock.
+                        </div>
+                      )}
+                    </div>
                   </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg">Order Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Subtotal</span>
+                  <span className="font-medium text-foreground">{formatCurrency(subtotal)}</span>
                 </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <span className="text-sm text-muted-foreground">Shipping</span>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Vendor will confirm after checkout. Shipping costs are settled directly with the vendor.
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0">
+                    £0.00
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between border-t pt-4">
+                  <span className="text-base font-semibold text-foreground">Total</span>
+                  <span className="text-xl font-bold text-primary">{formatCurrency(total)}</span>
+                </div>
+
+                <div className="space-y-3">
+                  <Button className="w-full" onClick={() => navigate("/checkout")}>
+                    Proceed to Checkout
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => navigate("/products")}>
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Continue Shopping
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        ) : (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
+              <ShoppingBag className="h-12 w-12 text-muted-foreground" />
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-foreground">Your cart is empty</h2>
+                <p className="text-muted-foreground">
+                  Browse our marketplace and add items to your cart when you're ready.
+                </p>
               </div>
-
-              <Button
-                onClick={() => navigate('/checkout')}
-                size="lg"
-                className="w-full"
-              >
-                Proceed to Checkout
-                <ArrowRight className="ml-2 h-5 w-5" />
+              <Button onClick={() => navigate("/products")}>
+                Start Shopping
+                <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-
-              <Link to="/products">
-                <Button variant="outline" className="w-full">
-                  Continue Shopping
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
-}
+};
 
-
+export default Cart;

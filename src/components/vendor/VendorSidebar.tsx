@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
 
 const vendorNavItems = [
   {
@@ -71,12 +72,6 @@ const vendorNavItems = [
     description: "Detailed business reports"
   },
   {
-    title: "Shopping",
-    href: "/vendor/shopping",
-    icon: ShoppingCart,
-    description: "Browse marketplace and analyze competitors"
-  },
-  {
     title: "Profile",
     href: "/vendor/profile",
     icon: User,
@@ -84,7 +79,14 @@ const vendorNavItems = [
   }
 ];
 
-export function VendorSidebar() {
+type VendorSidebarProps = {
+  onNavigate?: () => void;
+  onCloseMobile?: () => void;
+  className?: string;
+  showCloseButton?: boolean;
+};
+
+export function VendorSidebar({ onNavigate, onCloseMobile, className, showCloseButton = false }: VendorSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,41 +97,69 @@ export function VendorSidebar() {
     navigate("/auth/vendor-login");
   };
 
+  const handleNavigate = (href: string) => {
+    navigate(href);
+    onNavigate?.();
+  };
+
   return (
-    <div className={cn(
-      "flex h-screen border-r bg-background transition-all duration-300",
-      isCollapsed ? "w-16" : "w-64"
-    )}>
+    <div
+      className={cn(
+        "flex h-full border-r bg-background transition-all duration-300",
+        isCollapsed ? "w-16" : "w-64",
+        className
+      )}
+    >
       <div className="flex w-full flex-col">
         {/* Header */}
         <div className="flex h-16 items-center justify-between border-b px-4">
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
-              <Store className="h-6 w-6 text-orange-600" />
-              <span className="font-semibold">Vendor Portal</span>
+              <img
+                src="/afrigos.jpg"
+                alt="AfriGos"
+                className="h-8 w-8 rounded-lg object-cover shadow-sm"
+              />
+              <span className="font-semibold text-foreground">
+                AfriGos Vendor
+              </span>
             </div>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8 p-0"
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
+          <div className="flex items-center gap-1">
+            {showCloseButton && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onCloseMobile}
+                className="h-8 w-8 p-0 lg:hidden"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="h-8 w-8 p-0 hidden lg:inline-flex"
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronLeft className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Vendor Info */}
         {!isCollapsed && (
           <div className="border-b p-4">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <Store className="h-5 w-5 text-orange-600" />
-              </div>
+              <img
+                src="/afrigos.jpg"
+                alt="AfriGos"
+                className="h-10 w-10 rounded-full object-cover shadow-sm"
+              />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">
                   {user?.vendorName || user?.name}
@@ -155,7 +185,7 @@ export function VendorSidebar() {
                     "w-full justify-start h-10",
                     isActive && "bg-orange-100 text-orange-700 hover:bg-orange-100"
                   )}
-                  onClick={() => navigate(item.href)}
+                  onClick={() => handleNavigate(item.href)}
                 >
                   <item.icon className={cn(
                     "h-4 w-4",

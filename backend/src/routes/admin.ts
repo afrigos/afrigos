@@ -1,5 +1,5 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, $Enums } from '@prisma/client';
 import { requireAdmin } from '../middleware/auth';
 
 const router = express.Router();
@@ -10,23 +10,47 @@ const prisma = new PrismaClient();
 // @access  Private (Admin)
 router.get('/dashboard', requireAdmin, async (req, res) => {
   try {
+    const paidStatuses = [$Enums.PaymentStatus.COMPLETED];
+
     const [
       totalUsers,
       totalVendors,
-      totalProducts,
+      activeVendors,
+      productsListed,
       totalOrders,
       totalRevenue,
       recentOrders,
       topProducts,
-      vendorStats
+      vendorStats,
+      orderStatusCounts,
+      paymentStatusCounts
     ] = await Promise.all([
       prisma.user.count(),
       prisma.vendorProfile.count(),
-      prisma.product.count(),
+      prisma.vendorProfile.count({
+        where: {
+          OR: [
+            { isVerified: true },
+            { verificationStatus: { equals: $Enums.VerificationStatus.VERIFIED } }
+          ]
+        }
+      }),
+      prisma.product.count({
+        where: {
+          AND: [
+            { isActive: true },
+            { status: { in: [$Enums.ProductStatus.APPROVED, $Enums.ProductStatus.ACTIVE] } }
+          ]
+        }
+      }),
       prisma.order.count(),
-      prisma.payment.aggregate({
-        where: { status: 'COMPLETED' },
-        _sum: { amount: true }
+      prisma.order.aggregate({
+        where: {
+          paymentStatus: {
+            in: paidStatuses
+          }
+        },
+        _sum: { totalAmount: true }
       }),
       prisma.order.findMany({
         include: {
@@ -80,6 +104,14 @@ router.get('/dashboard', requireAdmin, async (req, res) => {
         },
         orderBy: { createdAt: 'desc' },
         take: 10
+      }),
+      prisma.order.groupBy({
+        by: ['status'],
+        _count: { _all: true }
+      }),
+      prisma.order.groupBy({
+        by: ['paymentStatus'],
+        _count: { _all: true }
       })
     ]);
 
@@ -89,13 +121,16 @@ router.get('/dashboard', requireAdmin, async (req, res) => {
         overview: {
           totalUsers,
           totalVendors,
-          totalProducts,
+          activeVendors,
+          productsListed,
           totalOrders,
-          totalRevenue: totalRevenue._sum.amount || 0
+          totalRevenue: totalRevenue._sum.totalAmount || 0
         },
         recentOrders,
         topProducts,
-        vendorStats
+        vendorStats,
+        orderStatusCounts,
+        paymentStatusCounts
       }
     });
   } catch (error) {
