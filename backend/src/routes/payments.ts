@@ -51,6 +51,30 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req: a
         await handlePaymentCanceled(canceledPayment);
         break;
 
+      // Stripe Connect events
+      case 'transfer.created':
+      case 'transfer.reversed':
+      case 'transfer.updated':
+        const transfer = event.data.object as Stripe.Transfer;
+        await handleTransferUpdate(transfer, event.type);
+        break;
+
+      case 'account.updated':
+        const account = event.data.object as Stripe.Account;
+        await handleAccountUpdate(account);
+        break;
+
+      // Payout events from connected accounts (when vendor receives money in bank)
+      // Note: These events are only received if webhooks are configured to forward events from connected accounts
+      // This requires additional Stripe dashboard configuration
+      case 'payout.paid':
+      case 'payout.failed':
+        const payout = event.data.object as Stripe.Payout;
+        // The event.account property contains the connected account ID if this is from a connected account
+        const connectedAccountId = (event as any).account;
+        await handlePayoutUpdate(payout, event.type, connectedAccountId);
+        break;
+
       default:
         console.log(`Unhandled event type: ${event.type}`);
     }
@@ -281,6 +305,96 @@ router.post('/create-intent', [
       }
     }
 
+    // Check if mock payment mode is enabled
+    const MOCK_PAYMENTS = process.env.MOCK_PAYMENTS === 'true' || process.env.MOCK_PAYMENTS === '1';
+    
+    if (MOCK_PAYMENTS) {
+      // Mock payment mode: Automatically mark payment as successful
+      console.log('🧪 MOCK PAYMENT MODE: Automatically processing payment for order', order.id);
+      
+      // Create mock payment record
+      let payment;
+      if (existingPayment) {
+        payment = await prisma.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            transactionId: `mock_pi_${Date.now()}_${order.id}`,
+            gatewayResponse: {
+              id: `mock_pi_${Date.now()}_${order.id}`,
+              status: 'succeeded',
+              amount: Math.round(Number(order.totalAmount) * 100),
+              currency: 'gbp',
+              metadata: {
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                customerId: order.customerId
+              }
+            } as any,
+            status: 'COMPLETED'
+          }
+        });
+      } else {
+        payment = await prisma.payment.create({
+          data: {
+            orderId: order.id,
+            amount: Number(order.totalAmount),
+            paymentMethod: 'card',
+            gateway: PaymentGateway.STRIPE,
+            transactionId: `mock_pi_${Date.now()}_${order.id}`,
+            gatewayResponse: {
+              id: `mock_pi_${Date.now()}_${order.id}`,
+              status: 'succeeded',
+              amount: Math.round(Number(order.totalAmount) * 100),
+              currency: 'gbp',
+              metadata: {
+                orderId: order.id,
+                orderNumber: order.orderNumber,
+                customerId: order.customerId
+              }
+            } as any,
+            status: 'COMPLETED'
+          }
+        });
+      }
+
+      // Update order status to COMPLETED
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: 'COMPLETED',
+          status: 'CONFIRMED'
+        }
+      });
+
+      // Create mock payment intent object for handlePaymentSuccess
+      const mockPaymentIntent = {
+        id: payment.transactionId,
+        status: 'succeeded',
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.orderNumber,
+          customerId: order.customerId
+        }
+      } as any;
+
+      // Call handlePaymentSuccess to ensure all records are updated
+      await handlePaymentSuccess(mockPaymentIntent);
+
+      console.log('✅ MOCK PAYMENT: Payment automatically processed and marked as successful');
+
+      // Return mock client secret (frontend will detect this and skip Stripe)
+      res.json({
+        success: true,
+        data: {
+          clientSecret: `mock_secret_${payment.transactionId}`,
+          paymentIntentId: payment.transactionId,
+          mockPayment: true // Flag for frontend
+        }
+      });
+      return;
+    }
+
+    // Normal Stripe payment flow
     // Convert amount to cents (Stripe uses smallest currency unit)
     const amountInCents = Math.round(Number(order.totalAmount) * 100);
 
@@ -426,6 +540,224 @@ async function handlePaymentCanceled(paymentIntent: Stripe.PaymentIntent) {
     });
 
     console.log(`Payment canceled for order ${orderId}`);
+  }
+}
+
+// Helper function to handle Stripe transfer updates (vendor payouts)
+async function handleTransferUpdate(transfer: Stripe.Transfer, eventType: string) {
+  try {
+    const vendorId = transfer.metadata?.vendorId;
+    if (!vendorId) {
+      console.log('Transfer update received but no vendorId in metadata');
+      return;
+    }
+
+    // Find vendor profile by Stripe account ID
+    const vendorProfile = await prisma.vendorProfile.findFirst({
+      where: {
+        stripeAccountId: transfer.destination as string
+      },
+      include: {
+        user: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    if (!vendorProfile) {
+      console.log(`Vendor profile not found for Stripe account: ${transfer.destination}`);
+      return;
+    }
+
+    // Update notification based on transfer status
+    let title = 'Payout Update';
+    let message = '';
+    let notificationType = 'PAYMENT_RECEIVED';
+
+    switch (eventType) {
+      case 'transfer.created':
+        message = `Your payout of £${(transfer.amount / 100).toFixed(2)} has been transferred to your Stripe account balance. Funds will be available in your bank account shortly.`;
+        title = 'Transfer Created';
+        break;
+      case 'transfer.reversed':
+        message = `Your payout of £${(transfer.amount / 100).toFixed(2)} has been reversed.`;
+        title = 'Transfer Reversed';
+        notificationType = 'SYSTEM_ALERT';
+        // Refund the withdrawal balance if transfer was reversed
+        await prisma.vendorProfile.update({
+          where: { id: vendorProfile.id },
+          data: {
+            withdrawalBalance: {
+              increment: transfer.amount / 100
+            }
+          } as any
+        });
+        break;
+      case 'transfer.updated':
+        message = `Your transfer of £${(transfer.amount / 100).toFixed(2)} has been updated.`;
+        title = 'Transfer Updated';
+        break;
+      default:
+        message = `Your transfer of £${(transfer.amount / 100).toFixed(2)} status has changed.`;
+    }
+
+    // Create notification for vendor
+    if (vendorProfile.user) {
+      await prisma.notification.create({
+        data: {
+          userId: vendorProfile.user.id,
+          title,
+          message,
+          type: notificationType as any
+        }
+      });
+    }
+
+    console.log(`Transfer ${eventType} processed for vendor ${vendorId}, transfer ID: ${transfer.id}`);
+  } catch (error: any) {
+    console.error('Error handling transfer update:', error);
+  }
+}
+
+// Helper function to handle Stripe account updates (vendor onboarding status)
+async function handleAccountUpdate(account: Stripe.Account) {
+  try {
+    const vendorId = account.metadata?.vendorId;
+    if (!vendorId && !account.id) {
+      console.log('Account update received but no vendorId or account ID');
+      return;
+    }
+
+    // Find vendor profile by Stripe account ID
+    const vendorProfile = await prisma.vendorProfile.findFirst({
+      where: {
+        stripeAccountId: account.id
+      },
+      include: {
+        user: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
+
+    if (!vendorProfile) {
+      console.log(`Vendor profile not found for Stripe account: ${account.id}`);
+      return;
+    }
+
+    // Update Stripe account status
+    let stripeAccountStatus = 'pending';
+    if (account.charges_enabled && account.payouts_enabled && account.details_submitted) {
+      stripeAccountStatus = 'verified';
+    } else if (account.charges_enabled || account.payouts_enabled) {
+      stripeAccountStatus = 'processing';
+    }
+
+    await prisma.vendorProfile.update({
+      where: { id: vendorProfile.id },
+      data: {
+        stripeAccountStatus
+      } as any
+    });
+
+    // Notify vendor if account is now verified
+    if (stripeAccountStatus === 'verified' && vendorProfile.user) {
+      await prisma.notification.create({
+        data: {
+          userId: vendorProfile.user.id,
+          title: 'Stripe Account Verified',
+          message: 'Your Stripe account has been verified and is ready for payouts.',
+          type: 'SYSTEM_ALERT'
+        }
+      });
+    }
+
+    console.log(`Account update processed for vendor ${vendorProfile.id}, status: ${stripeAccountStatus}`);
+  } catch (error: any) {
+    console.error('Error handling account update:', error);
+  }
+}
+
+// Helper function to handle Stripe payout updates (when vendor receives money in bank)
+// Note: This requires webhooks to be configured to receive events from connected accounts
+// In Stripe Dashboard: Settings > Connect > Settings > Forward events from connected accounts
+async function handlePayoutUpdate(payout: Stripe.Payout, eventType: string, connectedAccountId?: string) {
+  try {
+    let vendorProfile = null;
+    
+    // First, try to find vendor by connected account ID (most reliable)
+    if (connectedAccountId) {
+      vendorProfile = await prisma.vendorProfile.findFirst({
+        where: {
+          stripeAccountId: connectedAccountId
+        },
+        include: {
+          user: {
+            select: {
+              id: true
+            }
+          }
+        }
+      });
+    }
+    
+    // Fallback: try to find by payout metadata
+    if (!vendorProfile && payout.metadata?.vendorId) {
+      vendorProfile = await prisma.vendorProfile.findUnique({
+        where: { id: payout.metadata.vendorId },
+        include: {
+          user: {
+            select: {
+              id: true
+            }
+          }
+        }
+      });
+    }
+    
+    if (!vendorProfile) {
+      console.log(`Vendor profile not found for payout: ${payout.id}, connected account: ${connectedAccountId || 'unknown'}`);
+      return;
+    }
+
+    // Update notification based on payout status
+    let title = 'Payout Update';
+    let message = '';
+    let notificationType = 'PAYMENT_RECEIVED';
+
+    switch (eventType) {
+      case 'payout.paid':
+        message = `Your payout of £${(payout.amount / 100).toFixed(2)} has been successfully transferred to your bank account.`;
+        title = 'Payout Successful';
+        break;
+      case 'payout.failed':
+        message = `Your payout of £${(payout.amount / 100).toFixed(2)} failed. Please check your bank account details in your Stripe account.`;
+        title = 'Payout Failed';
+        notificationType = 'SYSTEM_ALERT';
+        break;
+      default:
+        message = `Your payout of £${(payout.amount / 100).toFixed(2)} status has changed.`;
+    }
+
+    // Create notification for vendor
+    if (vendorProfile.user) {
+      await prisma.notification.create({
+        data: {
+          userId: vendorProfile.user.id,
+          title,
+          message,
+          type: notificationType as any
+        }
+      });
+    }
+
+    console.log(`Payout ${eventType} processed for vendor ${vendorProfile.id}, payout ID: ${payout.id}`);
+  } catch (error: any) {
+    console.error('Error handling payout update:', error);
   }
 }
 

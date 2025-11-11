@@ -93,13 +93,51 @@ router.use(authenticate);
 // @access  Private
 router.get('/', async (req: any, res: any) => {
   try {
-    const { page = 1, limit = 10, status } = req.query;
+    const { page = 1, limit = 10, status, type } = req.query;
 
     const where: any = {};
     
-    if (req.user.role === 'VENDOR') {
-      where.vendorId = req.user.vendorId;
-    } else if (req.user.role === 'CUSTOMER') {
+    // If type is 'customer', show orders where user is the customer (orders they placed)
+    // If type is 'vendor', show orders where user is the vendor (orders they received)
+    // If type is not specified:
+    //   - For vendors: default to vendor orders (orders they received)
+    //   - For customers: default to customer orders (orders they placed)
+    //   - For vendors accessing customer routes: use type='customer' to see orders they placed
+    
+    if (type === 'customer' || (req.user.role === 'CUSTOMER' && type !== 'vendor')) {
+      // Get orders where user is the customer (orders they placed)
+      where.customerId = req.user.id;
+    } else if (type === 'vendor' || (req.user.role === 'VENDOR' && type !== 'customer')) {
+      // Get orders where user is the vendor (orders they received)
+      // Need to get vendorId from vendorProfile if not directly available
+      if (req.user.vendorId) {
+        where.vendorId = req.user.vendorId;
+      } else {
+        // Fallback: get vendor profile from user
+        const vendorProfile = await prisma.vendorProfile.findUnique({
+          where: { userId: req.user.id },
+          select: { id: true }
+        });
+        if (vendorProfile) {
+          where.vendorId = vendorProfile.id;
+        } else {
+          // No vendor profile, return empty
+          return res.json({
+            success: true,
+            data: {
+              orders: [],
+              pagination: {
+                page: Number(page),
+                limit: Number(limit),
+                total: 0,
+                pages: 0
+              }
+            }
+          });
+        }
+      }
+    } else {
+      // Default: filter by customerId for all users when accessing customer routes
       where.customerId = req.user.id;
     }
 
@@ -228,14 +266,26 @@ router.get('/:id', async (req: any, res: any) => {
     }
 
     // Check if user has access to this order
-    if (req.user.role === 'VENDOR' && order.vendorId !== req.user.vendorId) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
+    // Users can access orders where they are the customer (orders they placed) OR the vendor (orders they received)
+    const isCustomer = order.customerId === req.user.id;
+    
+    // Check if user is the vendor for this order
+    let isVendor = false;
+    if (req.user.vendorId) {
+      isVendor = order.vendorId === req.user.vendorId;
+    } else if (req.user.role === 'VENDOR') {
+      // Fallback: get vendor profile to check vendorId
+      const vendorProfile = await prisma.vendorProfile.findUnique({
+        where: { userId: req.user.id },
+        select: { id: true }
       });
+      if (vendorProfile) {
+        isVendor = order.vendorId === vendorProfile.id;
+      }
     }
 
-    if (req.user.role === 'CUSTOMER' && order.customerId !== req.user.id) {
+    // Allow access if user is customer, vendor, or admin
+    if (!isCustomer && !isVendor && req.user.role !== 'ADMIN') {
       return res.status(403).json({
         success: false,
         message: 'Access denied'
@@ -458,12 +508,21 @@ router.patch('/:id/status', [
 
     const order = await prisma.order.findUnique({
       where: { id },
-      select: {
-        id: true,
-        vendorId: true,
-        customerId: true,
-        status: true,
-        paymentStatus: true
+      include: {
+        orderItems: {
+          include: {
+            product: {
+              include: {
+                category: {
+                  select: {
+                    id: true,
+                    commissionRate: true
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     });
 
@@ -501,6 +560,94 @@ router.patch('/:id/status', [
         updatedAt: true
       }
     });
+
+    // Create vendor earnings when order is delivered and payment is completed
+    if (status === 'DELIVERED' && order.paymentStatus === 'COMPLETED') {
+      // Check if earning already exists for this order
+      const existingEarning = await prisma.vendorEarning.findFirst({
+        where: {
+          orderId: order.id,
+          vendorId: order.vendorId
+        }
+      });
+
+      if (!existingEarning) {
+        // Calculate total order amount (excluding shipping for commission calculation)
+        const orderSubtotal = order.orderItems.reduce((sum, item) => {
+          return sum + Number(item.total);
+        }, 0);
+
+        // Calculate average commission rate from order items
+        // Use category commissionRate if available, otherwise default to 15%
+        const DEFAULT_COMMISSION_RATE = 15;
+        let totalCommissionRate = 0;
+        let itemsWithCommission = 0;
+
+        order.orderItems.forEach((item) => {
+          const commissionRate = item.product.category?.commissionRate 
+            ? Number(item.product.category.commissionRate) 
+            : DEFAULT_COMMISSION_RATE;
+          totalCommissionRate += commissionRate;
+          itemsWithCommission++;
+        });
+
+        const averageCommissionRate = itemsWithCommission > 0 
+          ? totalCommissionRate / itemsWithCommission 
+          : DEFAULT_COMMISSION_RATE;
+
+        // Calculate commission and net amount
+        const grossAmount = Number(order.totalAmount) - Number(order.shippingCost || 0);
+        const commission = (grossAmount * averageCommissionRate) / 100;
+        const netAmount = grossAmount - commission;
+
+        // Create vendor earning and immediately move to withdrawal balance
+        const earning = await prisma.vendorEarning.create({
+          data: {
+            vendorId: order.vendorId,
+            orderId: order.id,
+            amount: grossAmount,
+            commission: commission,
+            netAmount: netAmount,
+            status: 'PROCESSING',
+            movedToWithdrawal: true,
+            movedToWithdrawalAt: new Date()
+          } as any
+        });
+
+        // Immediately update vendor withdrawal balance
+        await prisma.vendorProfile.update({
+          where: { id: order.vendorId },
+          data: {
+            withdrawalBalance: {
+              increment: netAmount
+            }
+          } as any
+        });
+
+        // Create notification for vendor
+        const vendorUser = await prisma.user.findFirst({
+          where: {
+            vendorProfile: {
+              id: order.vendorId
+            }
+          },
+          select: {
+            id: true
+          }
+        });
+
+        if (vendorUser) {
+          await prisma.notification.create({
+            data: {
+              userId: vendorUser.id,
+              title: 'New Earnings',
+              message: `You have earned £${netAmount.toFixed(2)} from order ${order.orderNumber}. Funds are available for withdrawal immediately.`,
+              type: 'PAYMENT_RECEIVED'
+            }
+          });
+        }
+      }
+    }
 
     res.json({
       success: true,

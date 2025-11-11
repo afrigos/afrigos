@@ -137,7 +137,12 @@ router.post('/login', [
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
-        vendorProfile: true,
+        vendorProfile: {
+          select: {
+            id: true,
+            businessName: true
+          }
+        },
         adminProfile: true
       }
     });
@@ -171,6 +176,13 @@ router.post('/login', [
     // Remove password from response
     const { password: _, ...userWithoutPassword } = user;
 
+    // Include vendor info in response if user is a vendor
+    const responseData: any = {
+      ...userWithoutPassword,
+      vendorId: user.vendorProfile?.id,
+      vendorName: user.vendorProfile?.businessName
+    };
+
     const message = isPendingApproval 
       ? `Login successful. Your ${user.role.toLowerCase()} account is pending approval.`
       : 'Login successful';
@@ -179,7 +191,7 @@ router.post('/login', [
       success: true,
       message,
       data: {
-        user: userWithoutPassword,
+        user: responseData,
         token,
         isPendingApproval
       }

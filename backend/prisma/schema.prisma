@@ -64,6 +64,16 @@ model VendorProfile {
   socialMedia     Json?    // JSON object for social media links
   isVerified      Boolean  @default(false)
   verificationStatus VerificationStatus @default(PENDING)
+  // Stripe Payment Credentials
+  stripeAccountId String?  // Stripe connected account ID
+  bankAccountNumber String? // Bank account number (should be encrypted in production)
+  bankRoutingNumber String? // Bank routing/sort code
+  bankAccountHolderName String? // Name on bank account
+  bankName         String? // Name of the bank
+  stripeAccountStatus String? // Status of Stripe account (pending, verified, etc.)
+  stripePaymentDetailsEditCount Int @default(0) // Number of times payment details have been edited (max 5)
+  // Withdrawal Balance
+  withdrawalBalance Decimal @db.Decimal(10, 2) @default(0) // Available balance for withdrawal (earnings after 48 hours)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -228,6 +238,8 @@ model VendorEarning {
   netAmount     Decimal  @db.Decimal(10, 2)
   status        EarningStatus @default(PENDING)
   paidAt        DateTime?
+  movedToWithdrawal Boolean @default(false) // Track if moved to withdrawal balance
+  movedToWithdrawalAt DateTime? // When it was moved to withdrawal balance
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
