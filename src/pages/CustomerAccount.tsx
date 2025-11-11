@@ -161,7 +161,9 @@ const CustomerAccount = () => {
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ["customer-orders"],
     queryFn: async () => {
-      const response = await apiFetch<OrdersResponse>("/orders?limit=50");
+      // Use type=customer to ensure we get orders where user is the customer (orders they placed)
+      // This works for both customers and vendors who are shopping
+      const response = await apiFetch<OrdersResponse>("/orders?limit=50&type=customer");
       if (!response.success) {
         throw new Error("Failed to load orders");
       }

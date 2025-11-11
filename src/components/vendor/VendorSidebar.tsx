@@ -16,7 +16,8 @@ import {
   FileText,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CreditCard
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,12 @@ const vendorNavItems = [
     href: "/vendor/earnings",
     icon: DollarSign,
     description: "Commission tracking and payouts"
+  },
+  {
+    title: "Withdrawals",
+    href: "/vendor/withdrawals",
+    icon: CreditCard,
+    description: "View withdrawal transactions"
   },
   {
     title: "Reviews",

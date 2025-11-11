@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiFetch } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Loader2, Store } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 type Notice = {
   type: "error" | "success" | "info";
@@ -233,10 +233,14 @@ const VendorLogin = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-muted/30 via-muted/20 to-background">
       <div className="container mx-auto flex min-h-screen items-center justify-center px-4 py-16">
-        <Card className="w-full max-w-2xl border-0 shadow-xl">
+        <Card className="w-full max-w-md border-0 shadow-xl">
           <CardHeader className="space-y-4 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
-              <Store className="h-7 w-7 text-primary" />
+            <div className="mx-auto flex h-20 w-20 items-center justify-center">
+              <img
+                src="/afrigos.jpg"
+                alt="AfriGos Logo"
+                className="h-full w-full object-contain rounded-lg"
+              />
             </div>
             <div>
               <CardTitle className="text-3xl font-semibold text-foreground">Vendor Portal</CardTitle>

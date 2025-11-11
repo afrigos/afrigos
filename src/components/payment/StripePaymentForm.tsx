@@ -3,13 +3,14 @@ import { useStripe, useElements, PaymentElement } from "@stripe/react-stripe-js"
 import type { PaymentIntent } from "@stripe/stripe-js";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Loader2, ShieldCheck } from "lucide-react";
+import { AlertCircle, Loader2, ShieldCheck, CheckCircle } from "lucide-react";
 
 type StripePaymentFormProps = {
   clientSecret: string;
   orderId: string;
   onSuccess: (orderId: string) => void;
   onError: (message: string) => void;
+  mockPayment?: boolean;
 };
 
 const resolvePaymentMessage = (paymentIntent: PaymentIntent | null) => {
@@ -32,12 +33,25 @@ export function StripePaymentForm({
   orderId,
   onSuccess,
   onError,
+  mockPayment = false,
 }: StripePaymentFormProps) {
   const stripe = useStripe();
   const elements = useElements();
 
   const [message, setMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Handle mock payment mode - automatically succeed
+  useEffect(() => {
+    if (mockPayment && clientSecret.startsWith('mock_secret_')) {
+      console.log('🧪 Mock payment mode: Automatically processing payment');
+      setMessage('Payment succeeded. Finalising your order…');
+      // Small delay to show the message, then redirect
+      setTimeout(() => {
+        onSuccess(orderId);
+      }, 1000);
+    }
+  }, [mockPayment, clientSecret, orderId, onSuccess]);
 
   useEffect(() => {
     if (!stripe || !clientSecret) {
@@ -74,6 +88,16 @@ export function StripePaymentForm({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    // Skip Stripe in mock payment mode
+    if (mockPayment && clientSecret.startsWith('mock_secret_')) {
+      setMessage('Payment succeeded. Finalising your order…');
+      setIsProcessing(true);
+      setTimeout(() => {
+        onSuccess(orderId);
+      }, 1000);
+      return;
+    }
 
     if (!stripe || !elements) {
       return;
@@ -115,6 +139,27 @@ export function StripePaymentForm({
 
     setIsProcessing(false);
   };
+
+  // Show mock payment success message instead of Stripe form
+  if (mockPayment && clientSecret && clientSecret.startsWith('mock_secret_')) {
+    return (
+      <div className="space-y-6">
+        <div className="rounded-lg border border-green-300 bg-green-50 p-6 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center">
+              <CheckCircle className="h-8 w-8 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-green-900">Payment Successful</h3>
+              <p className="text-sm text-green-700 mt-1">
+                Your payment has been processed successfully. Redirecting to order confirmation...
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">

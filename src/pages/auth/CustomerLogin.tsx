@@ -72,12 +72,16 @@ export default function CustomerLogin() {
         localStorage.setItem('afrigos-user', JSON.stringify(data.data.user));
         
         // Transform user data to match AuthContext interface
+        // Include vendor info if user is a vendor
+        const userRole = data.data.user.role.toLowerCase() as 'admin' | 'vendor' | 'customer';
         const transformedUser = {
           id: data.data.user.id,
           email: data.data.user.email,
           name: `${data.data.user.firstName} ${data.data.user.lastName}`,
-          role: data.data.user.role.toLowerCase() as 'admin' | 'vendor' | 'customer',
+          role: userRole,
           avatar: null,
+          vendorId: (data.data.user as any).vendorProfile?.id || (data.data.user as any).vendorId,
+          vendorName: (data.data.user as any).vendorProfile?.businessName || (data.data.user as any).vendorName,
           isActive: data.data.user.isActive,
           isVerified: data.data.user.isVerified
         };
@@ -86,7 +90,8 @@ export default function CustomerLogin() {
         setUser(transformedUser);
       }
       
-      // Redirect non-customers to appropriate portals
+      // Only redirect admins (they should use admin login)
+      // Vendors and customers can both use customer login
       if (data.data.user.role.toLowerCase() === 'admin') {
         toast({
           title: "Access Denied",
@@ -97,19 +102,13 @@ export default function CustomerLogin() {
         return;
       }
       
-      if (data.data.user.role.toLowerCase() === 'vendor') {
-        toast({
-          title: "Access Denied",
-          description: "Vendors should use the vendor login portal.",
-          variant: "destructive",
-        });
-        navigate("/auth/vendor-login");
-        return;
-      }
-      
+      // Welcome message based on role
+      const isVendor = data.data.user.role.toLowerCase() === 'vendor';
       toast({
         title: "Welcome back!",
-        description: "Successfully logged into your account",
+        description: isVendor 
+          ? "Successfully logged in. You can shop and manage orders here." 
+          : "Successfully logged into your account",
       });
       
       // Check for redirect parameter
@@ -148,7 +147,7 @@ export default function CustomerLogin() {
           <CardHeader className="space-y-1 text-center">
             <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
             <CardDescription>
-              Sign in to your account to continue shopping
+              Sign in to your account to continue shopping. Vendors can log in here to shop and place orders as customers.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -228,9 +227,9 @@ export default function CustomerLogin() {
 
         <div className="mt-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Are you a vendor?{" "}
+            Manage your vendor store?{" "}
             <Link to="/auth/vendor-login" className="text-orange-600 hover:underline font-medium">
-              Vendor Login
+              Vendor Portal Login
             </Link>
           </p>
         </div>

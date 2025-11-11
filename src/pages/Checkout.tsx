@@ -37,6 +37,7 @@ export default function Checkout() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
+  const [isMockPayment, setIsMockPayment] = useState(false);
 
   // Shipping address form
   const [address, setAddress] = useState({
@@ -137,13 +138,23 @@ export default function Checkout() {
       if (paymentMethod === 'card') {
         const intentResponse = await apiFetch<{ 
           success: boolean; 
-          data: { clientSecret: string; paymentIntentId: string } 
+          data: { clientSecret: string; paymentIntentId: string; mockPayment?: boolean } 
         }>('/payments/create-intent', {
           method: 'POST',
           body: JSON.stringify({ orderId: newOrderId }),
         });
 
         if (intentResponse.success) {
+          // If mock payment mode, automatically mark as successful
+          if (intentResponse.data.mockPayment) {
+            console.log('🧪 Mock payment mode: Payment automatically processed');
+            setIsMockPayment(true);
+            setClientSecret(intentResponse.data.clientSecret);
+            setPaymentIntentId(intentResponse.data.paymentIntentId);
+            // Payment is already processed on backend, just show success
+            return;
+          }
+          
           setClientSecret(intentResponse.data.clientSecret);
           setPaymentIntentId(intentResponse.data.paymentIntentId);
         } else {
@@ -514,6 +525,7 @@ export default function Checkout() {
                         orderId={orderId}
                         onSuccess={handlePaymentSuccess}
                         onError={handlePaymentError}
+                        mockPayment={isMockPayment}
                       />
                     </Elements>
                   ) : paymentMethod === 'card' ? (

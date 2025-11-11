@@ -12,6 +12,7 @@ import { VendorProfile } from "@/components/vendor/VendorProfile";
 import { VendorReports } from "@/components/vendor/VendorReports";
 import { VendorShopping } from "@/components/vendor/VendorShopping";
 import { VendorShipping } from "@/components/vendor/VendorShipping";
+import { VendorWithdrawals } from "@/components/vendor/VendorWithdrawals";
 
 const VendorLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -53,6 +54,7 @@ const VendorLayout = () => {
                 <Route path="products" element={<ProductManagement />} />
                 <Route path="analytics" element={<VendorAnalytics />} />
                 <Route path="earnings" element={<VendorEarnings />} />
+                <Route path="withdrawals" element={<VendorWithdrawals />} />
                 <Route path="reviews" element={<VendorReviews />} />
                 <Route path="reports" element={<VendorReports />} />
                 <Route path="profile" element={<VendorProfile />} />

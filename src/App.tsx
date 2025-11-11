@@ -32,6 +32,7 @@ import Shipping from "./pages/Shipping";
 import Returns from "./pages/Returns";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
+import VendorStorePage from "./pages/VendorStorePage";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -151,6 +152,7 @@ const App = () => (
               
               {/* Public Routes */}
               <Route path="/track" element={<CustomerLayout><OrderTracking /></CustomerLayout>} />
+              <Route path="/store/:vendorId" element={<CustomerLayout><VendorStorePage /></CustomerLayout>} />
               <Route path="/about" element={<CustomerLayout><About /></CustomerLayout>} />
               <Route path="/contact" element={<CustomerLayout><Contact /></CustomerLayout>} />
               <Route path="/faq" element={<CustomerLayout><FAQ /></CustomerLayout>} />

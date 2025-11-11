@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "@/contexts/CartContext";
+import type { CartItem } from "@/contexts/CartContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, AlertTriangle } from "lucide-react";
+import { Trash2, ShoppingBag, ArrowRight, ArrowLeft, AlertTriangle, Plus, Minus } from "lucide-react";
+import { BACKEND_URL } from "@/lib/api-config";
 
-type QuantityMap = Record<string, number>;
+type DisplayCartItem = CartItem & {
+  vendorName?: string;
+  availableStock?: number;
+};
 
 const formatCurrency = (amount: number, currency: string = "GBP") =>
   new Intl.NumberFormat("en-GB", {
@@ -18,22 +22,22 @@ const formatCurrency = (amount: number, currency: string = "GBP") =>
 
 const Cart = () => {
   const navigate = useNavigate();
-  const { items, updateItemQuantity, removeFromCart, clearCart, getCartTotal } = useCart();
-  const [pendingQuantities, setPendingQuantities] = useState<QuantityMap>({});
+  const { items, updateQuantity, removeFromCart, clearCart, getCartTotal } = useCart();
   const hasItems = items.length > 0;
 
-  const handleQuantityChange = (productId: string, rawValue: string) => {
-    const parsed = Number(rawValue);
-    if (Number.isNaN(parsed) || parsed < 1) {
-      return;
+  const handleQuantityIncrease = (item: DisplayCartItem) => {
+    const currentQuantity = item.quantity;
+    const maxQuantity = item.availableStock !== undefined ? item.availableStock : item.stock;
+    if (currentQuantity < maxQuantity) {
+      updateQuantity(item.id, currentQuantity + 1);
     }
+  };
 
-    setPendingQuantities((prev) => ({
-      ...prev,
-      [productId]: parsed,
-    }));
-
-    updateItemQuantity(productId, parsed);
+  const handleQuantityDecrease = (item: DisplayCartItem) => {
+    const currentQuantity = item.quantity;
+    if (currentQuantity > 1) {
+      updateQuantity(item.id, currentQuantity - 1);
+    }
   };
 
   const handleRemove = (productId: string) => {
@@ -43,6 +47,13 @@ const Cart = () => {
   const subtotal = getCartTotal();
   const shippingCost = 0;
   const total = subtotal + shippingCost;
+
+  const resolveImage = (image?: string | null) => {
+    if (!image) return "/placeholder-product.jpg";
+    if (image.startsWith("http")) return image;
+    if (image.startsWith("/")) return `${BACKEND_URL}${image}`;
+    return `${BACKEND_URL}/${image}`;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,67 +81,114 @@ const Cart = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {items.map((item) => (
+                {items.map((item) => {
+                  const displayItem = item as DisplayCartItem;
+                  const vendorLabel =
+                    displayItem.vendorName ??
+                    displayItem.vendor?.businessName ??
+                    "Marketplace vendor";
+                  const availableStock =
+                    typeof displayItem.availableStock === "number"
+                      ? displayItem.availableStock
+                      : displayItem.stock;
+
+                  return (
                   <div
                     key={item.id}
-                    className="flex flex-col gap-4 border-b pb-6 last:border-b-0 last:pb-0 md:flex-row"
+                    className="grid gap-4 rounded-xl border border-border/60 p-4 shadow-sm transition-shadow hover:shadow-md lg:grid-cols-[120px_1fr]"
                   >
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <Link
-                            to={`/product/${item.id}`}
-                            className="text-lg font-semibold text-foreground hover:text-primary"
+                    <Link
+                      to={`/product/${item.id}`}
+                      className="group relative block aspect-square overflow-hidden rounded-lg bg-muted"
+                    >
+                      <img
+                        src={resolveImage(displayItem.image)}
+                        alt={item.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={(event) => {
+                          (event.target as HTMLImageElement).src = "/placeholder-product.jpg";
+                        }}
+                      />
+                    </Link>
+
+                    <div className="flex flex-col justify-between gap-4">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <Link
+                              to={`/product/${item.id}`}
+                              className="text-lg font-semibold text-foreground hover:text-primary"
+                            >
+                              {item.name}
+                            </Link>
+                            <div className="text-sm text-muted-foreground">
+                              {`Sold by ${vendorLabel}`}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemove(item.id)}
+                            className="rounded-full border border-transparent p-2 text-muted-foreground transition-colors hover:border-destructive/30 hover:text-destructive"
+                            aria-label={`Remove ${item.name} from cart`}
                           >
-                            {item.name}
-                          </Link>
-                          <div className="text-sm text-muted-foreground">
-                            {item.vendorName ? `Sold by ${item.vendorName}` : "Marketplace vendor"}
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex items-center gap-4">
+                            <span className="text-sm text-muted-foreground">Quantity</span>
+                            <div className="flex items-center gap-2 border rounded-md">
+                              <button
+                                type="button"
+                                onClick={() => handleQuantityDecrease(displayItem)}
+                                disabled={item.quantity <= 1}
+                                className="p-2 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-l-md"
+                                aria-label="Decrease quantity"
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                              <span className="min-w-[3ch] text-center font-medium px-3 py-2">
+                                {item.quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleQuantityIncrease(displayItem)}
+                                disabled={item.quantity >= availableStock}
+                                className="p-2 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors rounded-r-md"
+                                aria-label="Increase quantity"
+                              >
+                                <Plus className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-right text-sm text-muted-foreground">
+                            <div>Unit price</div>
+                            <div className="text-base font-semibold text-foreground">
+                              {formatCurrency(item.price)}
+                            </div>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(item.id)}
-                          className="text-muted-foreground hover:text-destructive"
-                          aria-label={`Remove ${item.name} from cart`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
                       </div>
 
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <label htmlFor={`quantity-${item.id}`} className="text-sm text-muted-foreground">
-                            Quantity
-                          </label>
-                          <Input
-                            id={`quantity-${item.id}`}
-                            type="number"
-                            min={1}
-                            value={pendingQuantities[item.id] ?? item.quantity}
-                            onChange={(event) => handleQuantityChange(item.id, event.target.value)}
-                            className="w-24"
-                          />
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm text-muted-foreground">
-                            Unit price: {formatCurrency(item.price)}
-                          </div>
-                          <div className="text-lg font-semibold text-foreground">
+                      <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                        <div className="text-sm text-muted-foreground">
+                          Subtotal
+                          <span className="ml-2 text-lg font-semibold text-foreground">
                             {formatCurrency(item.price * item.quantity)}
+                          </span>
+                        </div>
+                        {availableStock < item.quantity && (
+                          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            Only {availableStock} left in stock.
                           </div>
-                        </div>
+                        )}
                       </div>
-
-                      {item.availableStock !== undefined && item.availableStock < item.quantity && (
-                        <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                          <AlertTriangle className="h-4 w-4 shrink-0" />
-                          Only {item.availableStock} left in stock.
-                        </div>
-                      )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
 

@@ -86,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             vendorName: result.data.vendorName || result.data.vendorProfile?.businessName,
             isActive: result.data.isActive,
             isVerified: result.data.isVerified,
+            avatar: result.data.avatar || undefined,
           };
           setUser(updatedUser);
           // Update localStorage with fresh data

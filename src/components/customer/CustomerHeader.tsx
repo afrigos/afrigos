@@ -149,6 +149,15 @@ export function CustomerHeader() {
                     <ShoppingCart className="mr-2 h-4 w-4" />
                     My Orders
                   </DropdownMenuItem>
+                  {user?.role === 'vendor' && user?.vendorId && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => window.open('/vendor/dashboard', '_blank')}>
+                        <Store className="mr-2 h-4 w-4" />
+                        Vendor Portal
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout}>
                     <LogOut className="mr-2 h-4 w-4" />

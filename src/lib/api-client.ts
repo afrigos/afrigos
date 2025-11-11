@@ -51,7 +51,10 @@ export async function apiFetch<T = any>(
     // Handle other errors
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `API request failed: ${response.status} ${response.statusText}`);
+      // Create error with response data attached
+      const error: any = new Error(errorData.message || `API request failed: ${response.status} ${response.statusText}`);
+      error.response = { data: errorData, status: response.status };
+      throw error;
     }
 
     // Return parsed JSON

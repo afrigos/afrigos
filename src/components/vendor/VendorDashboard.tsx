@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +100,7 @@ const getStatusIcon = (status: string) => {
 export function VendorDashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Fetch vendor dashboard data using TanStack Query
   const { data: vendorData, isLoading, error } = useQuery<VendorDashboardData, Error>({
@@ -189,11 +191,30 @@ export function VendorDashboard() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" className="w-full sm:w-auto">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full sm:w-auto"
+            onClick={() => navigate('/vendor/products')}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Add Product
           </Button>
-          <Button size="sm" className="w-full sm:w-auto">
+          <Button 
+            size="sm" 
+            className="w-full sm:w-auto"
+            onClick={() => {
+              if (user?.vendorId) {
+                window.open(`/store/${user.vendorId}`, '_blank');
+              } else {
+                toast({
+                  title: "Error",
+                  description: "Vendor ID not found",
+                  variant: "destructive"
+                });
+              }
+            }}
+          >
             <Eye className="h-4 w-4 mr-2" />
             View Store
           </Button>
