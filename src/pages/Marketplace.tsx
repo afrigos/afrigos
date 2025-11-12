@@ -42,7 +42,7 @@ export default function Marketplace() {
       title: "Best Sellers",
       subtitle: "Top Rated",
       description: "Products loved by thousands of customers",
-      imageUrl: "/banners/banner-5.jpg",
+      imageUrl: "/banners/banner-3.jpg",
       isImage: true,
       showWriteups: false, // No writeups - images only
       link: "/products?sort=popular",
