@@ -3,7 +3,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   Table,
   TableBody,
@@ -76,7 +85,13 @@ type AdminOrderApi = {
   totalAmount: unknown;
   paymentMethod?: string | null;
   createdAt: string;
-  vendor?: { businessName?: string | null } | null;
+  vendor?: { 
+    businessName?: string | null;
+    user?: {
+      email?: string | null;
+      phone?: string | null;
+    } | null;
+  } | null;
   customer?: { firstName?: string | null; lastName?: string | null; email?: string | null } | null;
   orderItems: AdminOrderItemApi[];
   shippingAddress?: unknown;
@@ -104,6 +119,8 @@ type AdminOrderRow = {
   customerEmail: string;
   customerPhone: string | null;
   vendorName: string;
+  vendorEmail: string | null;
+  vendorPhone: string | null;
   totalFormatted: string;
   totalValue: number;
   statusRaw: string;
@@ -228,6 +245,8 @@ const createOrderRow = (order: AdminOrderApi): AdminOrderRow => {
     customerEmail: order.customer?.email || shippingAddress?.email || "Not provided",
     customerPhone: shippingAddress?.phone || null,
     vendorName: order.vendor?.businessName || "Unknown vendor",
+    vendorEmail: order.vendor?.user?.email || null,
+    vendorPhone: order.vendor?.user?.phone || null,
     totalFormatted: formatCurrency(order.totalAmount),
     totalValue: normalizeNumber(order.totalAmount),
     statusRaw: order.status || "PENDING",
@@ -259,7 +278,7 @@ const fetchAdminOrders = async (
   const response = await apiFetch<{
     success: boolean;
     data: OrdersResponse;
-  }>(`/orders?${params.toString()}`);
+  }>(`/admin/orders?${params.toString()}`);
 
   if (!response.success || !response.data) {
     throw new Error("Failed to load orders");
@@ -290,6 +309,9 @@ export function OrderManagement() {
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [trackingDialogOpen, setTrackingDialogOpen] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [orderIdForTracking, setOrderIdForTracking] = useState<string | null>(null);
   const itemsPerPage = 10;
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -302,12 +324,13 @@ export function OrderManagement() {
     data: ordersData,
     isLoading: loadingOrders,
     isFetching: fetchingOrders,
+    refetch: refetchOrders,
   } = useQuery<OrdersResponse>({
     queryKey: ["admin-orders", currentPage, statusFilter, itemsPerPage],
     queryFn: () => fetchAdminOrders(currentPage, statusFilter, itemsPerPage),
   });
 
-  const { data: metricsData } = useQuery<OrderMetricsResponse>({
+  const { data: metricsData, refetch: refetchMetrics } = useQuery<OrderMetricsResponse>({
     queryKey: ["admin-order-metrics"],
     queryFn: fetchOrderMetrics,
     staleTime: 60000,
@@ -413,15 +436,27 @@ export function OrderManagement() {
   const handleProcessRefund = async (orderId: string) => {
     setActionLoadingId(orderId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast({
-        title: "Refund Processed",
-        description: `Refund has been processed for order ${orderId}`,
+      const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/orders/${orderId}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({})
       });
-    } catch (error) {
+
+      if (response.success) {
+        toast({
+          title: "Refund Processed",
+          description: response.message || `Refund has been processed for order ${orderId}`,
+        });
+        await Promise.all([refetchOrders(), refetchMetrics()]);
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder(null);
+        }
+      } else {
+        throw new Error(response.message || "Failed to process refund");
+      }
+    } catch (error: any) {
       toast({
         title: "Refund Failed",
-        description: "Failed to process refund. Please try again.",
+        description: error.message || "Failed to process refund. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -432,15 +467,27 @@ export function OrderManagement() {
   const handleCancelOrder = async (orderId: string) => {
     setActionLoadingId(orderId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast({
-        title: "Order Cancelled",
-        description: `Order ${orderId} has been cancelled successfully`,
+      const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/orders/${orderId}/cancel`, {
+        method: 'POST',
+        body: JSON.stringify({})
       });
-    } catch (error) {
+
+      if (response.success) {
+        toast({
+          title: "Order Cancelled",
+          description: response.message || `Order ${orderId} has been cancelled successfully`,
+        });
+        await Promise.all([refetchOrders(), refetchMetrics()]);
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder(null);
+        }
+      } else {
+        throw new Error(response.message || "Failed to cancel order");
+      }
+    } catch (error: any) {
       toast({
         title: "Cancellation Failed",
-        description: "Failed to cancel order. Please try again.",
+        description: error.message || "Failed to cancel order. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -448,13 +495,19 @@ export function OrderManagement() {
     }
   };
 
-  const handleContactCustomer = async (orderId: string, method: string) => {
+  const handleContactCustomer = async (order: AdminOrderRow, method: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast({
-        title: "Contact Initiated",
-        description: `Contacting customer for order ${orderId} via ${method}`,
-      });
+      if (method === "email" && order.customerEmail && order.customerEmail !== "Not provided") {
+        window.location.href = `mailto:${order.customerEmail}?subject=Order ${order.orderNumber}`;
+      } else if (method === "phone" && order.customerPhone) {
+        window.location.href = `tel:${order.customerPhone}`;
+      } else {
+        toast({
+          title: "Contact Information Not Available",
+          description: `Customer ${method} information is not available for this order.`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Contact Failed",
@@ -464,13 +517,19 @@ export function OrderManagement() {
     }
   };
 
-  const handleContactVendor = async (orderId: string, method: string) => {
+  const handleContactVendor = async (order: AdminOrderRow, method: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast({
-        title: "Vendor Contact Initiated",
-        description: `Contacting vendor for order ${orderId} via ${method}`,
-      });
+      if (method === "email" && order.vendorEmail) {
+        window.location.href = `mailto:${order.vendorEmail}?subject=Order ${order.orderNumber}`;
+      } else if (method === "phone" && order.vendorPhone) {
+        window.location.href = `tel:${order.vendorPhone}`;
+      } else {
+        toast({
+          title: "Vendor Contact Information Not Available",
+          description: `Vendor ${method} information is not available for this order.`,
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       toast({
         title: "Contact Failed",
@@ -483,15 +542,27 @@ export function OrderManagement() {
   const handleMarkAsDelivered = async (orderId: string) => {
     setActionLoadingId(orderId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast({
-        title: "Order Delivered",
-        description: `Order ${orderId} has been marked as delivered`,
+      const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'DELIVERED' })
       });
-    } catch (error) {
+
+      if (response.success) {
+        toast({
+          title: "Order Delivered",
+          description: response.message || `Order ${orderId} has been marked as delivered`,
+        });
+        await Promise.all([refetchOrders(), refetchMetrics()]);
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder(null);
+        }
+      } else {
+        throw new Error(response.message || "Failed to update order status");
+      }
+    } catch (error: any) {
       toast({
         title: "Update Failed",
-        description: "Failed to mark order as delivered. Please try again.",
+        description: error.message || "Failed to mark order as delivered. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -501,37 +572,71 @@ export function OrderManagement() {
 
   const handleResendConfirmation = async (orderId: string) => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast({
-        title: "Confirmation Sent",
-        description: `Order confirmation has been resent for order ${orderId}`,
+      const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/orders/${orderId}/resend-confirmation`, {
+        method: 'POST'
       });
-    } catch (error) {
+
+      if (response.success) {
+        toast({
+          title: "Confirmation Sent",
+          description: response.message || `Order confirmation has been resent for order ${orderId}`,
+        });
+      } else {
+        throw new Error(response.message || "Failed to resend confirmation");
+      }
+    } catch (error: any) {
       toast({
         title: "Send Failed",
-        description: "Failed to resend confirmation. Please try again.",
+        description: error.message || "Failed to resend confirmation. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  const handleUpdateStatus = async (orderId: string, newStatus: string) => {
+  const handleUpdateStatus = async (orderId: string, newStatus: string, trackingNumber?: string) => {
     setActionLoadingId(orderId);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      toast({
-        title: "Status Updated",
-        description: `Order ${orderId} status updated to ${formatStatusLabel(newStatus)}`,
+      const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus, trackingNumber })
       });
-    } catch (error) {
+
+      if (response.success) {
+        toast({
+          title: "Status Updated",
+          description: response.message || `Order ${orderId} status updated to ${formatStatusLabel(newStatus)}`,
+        });
+        await Promise.all([refetchOrders(), refetchMetrics()]);
+        if (selectedOrder?.id === orderId) {
+          setSelectedOrder(null);
+        }
+      } else {
+        throw new Error(response.message || "Failed to update order status");
+      }
+    } catch (error: any) {
       toast({
         title: "Update Failed",
-        description: "Failed to update order status. Please try again.",
+        description: error.message || "Failed to update order status. Please try again.",
         variant: "destructive",
       });
     } finally {
       setActionLoadingId(null);
     }
+  };
+
+  const handleMarkAsShipped = (orderId: string) => {
+    setOrderIdForTracking(orderId);
+    setTrackingNumber("");
+    setTrackingDialogOpen(true);
+  };
+
+  const handleConfirmShipping = async () => {
+    if (!orderIdForTracking) return;
+    
+    await handleUpdateStatus(orderIdForTracking, "SHIPPED", trackingNumber.trim() || undefined);
+    setTrackingDialogOpen(false);
+    setOrderIdForTracking(null);
+    setTrackingNumber("");
   };
 
   const handleExportOrders = async () => {
@@ -703,7 +808,7 @@ export function OrderManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleContactCustomer(order.id, "email")}
+                            onClick={() => handleContactCustomer(order, "email")}
                             title="Email Customer"
                           >
                             <Mail className="h-4 w-4" />
@@ -711,7 +816,7 @@ export function OrderManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleContactCustomer(order.id, "phone")}
+                            onClick={() => handleContactCustomer(order, "phone")}
                             title="Call Customer"
                           >
                             <Phone className="h-4 w-4" />
@@ -719,7 +824,7 @@ export function OrderManagement() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleContactVendor(order.id, "email")}
+                            onClick={() => handleContactVendor(order, "email")}
                             title="Email Vendor"
                           >
                             <Package className="h-4 w-4" />
@@ -729,7 +834,7 @@ export function OrderManagement() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleUpdateStatus(order.id, "SHIPPED")}
+                              onClick={() => handleMarkAsShipped(order.id)}
                               disabled={actionLoadingId === order.id}
                               title="Mark as Shipped"
                             >
@@ -914,6 +1019,12 @@ export function OrderManagement() {
                   <div><strong>Status:</strong> {formatStatusLabel(selectedOrder.statusRaw)}</div>
                   <div><strong>Payment Status:</strong> {formatStatusLabel(selectedOrder.paymentStatusRaw)}</div>
                   <div><strong>Vendor:</strong> {selectedOrder.vendorName}</div>
+                  {selectedOrder.vendorEmail && (
+                    <div><strong>Vendor Email:</strong> {selectedOrder.vendorEmail}</div>
+                  )}
+                  {selectedOrder.vendorPhone && (
+                    <div><strong>Vendor Phone:</strong> {selectedOrder.vendorPhone}</div>
+                  )}
                   <div><strong>Order Date:</strong> {selectedOrder.orderDateFormatted}</div>
                   <div><strong>Payment Method:</strong> {selectedOrder.paymentMethod ?? "Not specified"}</div>
                     <div><strong>Tracking:</strong> {selectedOrder.trackingNumber || "Not available"}</div>
@@ -943,7 +1054,7 @@ export function OrderManagement() {
               <div className="mt-6 flex flex-wrap gap-2">
                 <Button 
                   variant="outline" 
-                  onClick={() => handleContactCustomer(selectedOrder.id, "email")}
+                  onClick={() => handleContactCustomer(selectedOrder, "email")}
                   size="sm"
                 >
                   <Mail className="h-4 w-4 mr-2" />
@@ -951,7 +1062,7 @@ export function OrderManagement() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => handleContactCustomer(selectedOrder.id, "phone")}
+                  onClick={() => handleContactCustomer(selectedOrder, "phone")}
                   size="sm"
                 >
                   <Phone className="h-4 w-4 mr-2" />
@@ -959,7 +1070,7 @@ export function OrderManagement() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => handleContactVendor(selectedOrder.id, "email")}
+                  onClick={() => handleContactVendor(selectedOrder, "email")}
                   size="sm"
                 >
                   <Package className="h-4 w-4 mr-2" />
@@ -968,7 +1079,7 @@ export function OrderManagement() {
                 {selectedOrder.status === "processing" && (
                 <>
                   <Button 
-                    onClick={() => handleUpdateStatus(selectedOrder.id, "SHIPPED")}
+                    onClick={() => handleMarkAsShipped(selectedOrder.id)}
                     disabled={actionLoadingId === selectedOrder.id}
                     size="sm"
                   >
@@ -1026,6 +1137,59 @@ export function OrderManagement() {
             </div>
           </div>
         )}
+
+      {/* Tracking Number Dialog */}
+      <Dialog open={trackingDialogOpen} onOpenChange={setTrackingDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark Order as Shipped</DialogTitle>
+            <DialogDescription>
+              Enter the tracking number for this order (optional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="tracking-number">Tracking Number</Label>
+              <Input
+                id="tracking-number"
+                placeholder="Enter tracking number (optional)"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleConfirmShipping();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTrackingDialogOpen(false);
+                setOrderIdForTracking(null);
+                setTrackingNumber("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmShipping}
+              disabled={actionLoadingId === orderIdForTracking}
+            >
+              {actionLoadingId === orderIdForTracking ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Mark as Shipped"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

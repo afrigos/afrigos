@@ -244,7 +244,7 @@ export function VendorReviews() {
                     <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                   </div>
                   <div className="flex-1 rounded-full bg-muted">
-                    <div
+                    <div 
                       className="h-2 rounded-full bg-gradient-to-r from-orange-500 to-amber-400"
                       style={{ width: `${percentage}%` }}
                     />
@@ -319,7 +319,7 @@ export function VendorReviews() {
           {isError && (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
               {(error as Error)?.message ?? "We couldn't load reviews right now. Please try again shortly."}
-            </div>
+                    </div>
           )}
 
           {!isLoading && filteredReviews.length === 0 && (
@@ -328,7 +328,7 @@ export function VendorReviews() {
               <p className="text-sm text-muted-foreground">
                 Try adjusting the search term, rating, or product filter.
               </p>
-            </div>
+                </div>
           )}
 
           {filteredReviews.map((review) => (
@@ -369,9 +369,9 @@ export function VendorReviews() {
 
               {review.comment && (
                 <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{review.comment}</p>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
         </CardContent>
       </Card>
 

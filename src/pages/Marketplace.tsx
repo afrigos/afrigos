@@ -20,7 +20,8 @@ export default function Marketplace() {
       title: "Mega Sale",
       subtitle: "Up to 70% OFF",
       description: "Shop the biggest deals on African products",
-      imageUrl: "bg-gradient-to-r from-red-600 to-red-700",
+      imageUrl: "/banners/banner-1.jpg",
+      isImage: true,
       link: "/products?sort=popular",
       buttonText: "Shop Now"
     },
@@ -30,6 +31,7 @@ export default function Marketplace() {
       subtitle: "Fresh Products",
       description: "Discover the latest additions to our catalog",
       imageUrl: "bg-gradient-to-r from-blue-600 to-blue-700",
+      isImage: false,
       link: "/products?sort=newest",
       buttonText: "Explore"
     },
@@ -39,6 +41,7 @@ export default function Marketplace() {
       subtitle: "Top Rated",
       description: "Products loved by thousands of customers",
       imageUrl: "bg-gradient-to-r from-green-600 to-green-700",
+      isImage: false,
       link: "/products?sort=popular",
       buttonText: "View All"
     },
@@ -48,6 +51,7 @@ export default function Marketplace() {
       subtitle: "Quality Guaranteed",
       description: "Shop verified authentic African products with confidence",
       imageUrl: "bg-gradient-to-r from-purple-600 to-purple-700",
+      isImage: false,
       link: "/products",
       buttonText: "Shop Now"
     }
@@ -131,40 +135,98 @@ export default function Marketplace() {
               {banners.map((banner) => (
                 <CarouselItem key={banner.id} className="pl-2 md:pl-4 basis-full">
                   <Link to={banner.link || '/products'}>
-                    <div className={`${banner.imageUrl} rounded-lg overflow-hidden relative h-48 md:h-64 lg:h-80 w-full`}>
-                      <div className="absolute inset-0 flex items-center justify-between px-6 md:px-12 lg:px-16">
-                        <div className="text-white max-w-md z-10">
-                          {banner.subtitle && (
-                            <div className="text-sm md:text-base font-medium mb-2 opacity-90">
-                              {banner.subtitle}
-                            </div>
-                          )}
-                          <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3">
-                            {banner.title}
-                          </h2>
-                          {banner.description && (
-                            <p className="text-base md:text-lg mb-6 opacity-90">
-                              {banner.description}
-                            </p>
-                          )}
-                          <Button 
-                            variant="secondary" 
-                            size="lg"
-                            className="bg-white text-gray-900 hover:bg-gray-100 font-semibold"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              window.location.href = banner.link || '/products';
-                            }}
-                          >
-                            {banner.buttonText || 'Shop Now'}
-                            <ArrowRight className="ml-2 h-4 w-4" />
-                          </Button>
+                    <div className="rounded-lg overflow-hidden relative h-48 md:h-64 lg:h-80 w-full">
+                      {/* Background image or gradient */}
+                      {banner.isImage ? (
+                        <img 
+                          src={banner.imageUrl} 
+                          alt={banner.title}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback to gradient if image fails to load
+                            e.currentTarget.style.display = 'none';
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              parent.className = `${parent.className} bg-gradient-to-r from-red-600 to-red-700`;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className={`absolute inset-0 ${banner.imageUrl}`} />
+                      )}
+                      {/* Overlay for better text readability - only for non-image banners */}
+                      {!banner.isImage && <div className="absolute inset-0 bg-black/30" />}
+                      {/* Text content - commented out for first banner (banner-1.jpg) */}
+                      {!banner.isImage && (
+                        <div className="absolute inset-0 flex items-center justify-between px-6 md:px-12 lg:px-16">
+                          <div className="text-white max-w-md z-10">
+                            {banner.subtitle && (
+                              <div className="text-sm md:text-base font-medium mb-2 opacity-90">
+                                {banner.subtitle}
+                              </div>
+                            )}
+                            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3">
+                              {banner.title}
+                            </h2>
+                            {banner.description && (
+                              <p className="text-base md:text-lg mb-6 opacity-90">
+                                {banner.description}
+                              </p>
+                            )}
+                            <Button 
+                              variant="secondary" 
+                              size="lg"
+                              className="bg-white text-gray-900 hover:bg-gray-100 font-semibold"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.location.href = banner.link || '/products';
+                              }}
+                            >
+                              {banner.buttonText || 'Shop Now'}
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </div>
+                          {/* Decorative elements */}
+                          <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-1/3">
+                            <div className="absolute inset-0 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2" />
+                          </div>
                         </div>
-                        {/* Decorative elements */}
-                        <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-1/3">
-                          <div className="absolute inset-0 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2" />
+                      )}
+                      {/* Commented out text content for first banner (banner-1.jpg) */}
+                      {/* {banner.isImage && (
+                        <div className="absolute inset-0 flex items-center justify-between px-6 md:px-12 lg:px-16">
+                          <div className="text-white max-w-md z-10">
+                            {banner.subtitle && (
+                              <div className="text-sm md:text-base font-medium mb-2 opacity-90">
+                                {banner.subtitle}
+                              </div>
+                            )}
+                            <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-3">
+                              {banner.title}
+                            </h2>
+                            {banner.description && (
+                              <p className="text-base md:text-lg mb-6 opacity-90">
+                                {banner.description}
+                              </p>
+                            )}
+                            <Button 
+                              variant="secondary" 
+                              size="lg"
+                              className="bg-white text-gray-900 hover:bg-gray-100 font-semibold"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                window.location.href = banner.link || '/products';
+                              }}
+                            >
+                              {banner.buttonText || 'Shop Now'}
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-1/3">
+                            <div className="absolute inset-0 bg-white/10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2" />
+                          </div>
                         </div>
-                      </div>
+                      )} */}
                     </div>
                   </Link>
                 </CarouselItem>

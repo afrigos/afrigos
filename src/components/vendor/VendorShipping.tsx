@@ -13,23 +13,23 @@ import {
     TableHeader,
     TableRow,
   } from "@/components/ui/table";
-  import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-  } from "@/components/ui/select";
-import {
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { 
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Truck,
-  Clock,
+import { 
+  Truck, 
+  Clock, 
   CheckCircle,
   Package,
   AlertTriangle,
@@ -418,7 +418,7 @@ export function VendorShipping() {
       }
     },
     onSuccess: (_data, variables) => {
-      toast({
+    toast({
         title: "Shipment updated",
         description: `Order ${variables.orderId} is now ${formatStatusLabel(variables.status)}.`,
       });
@@ -460,14 +460,14 @@ export function VendorShipping() {
             Track fulfilment progress and manage customer deliveries
           </p>
         </div>
-        <Button
-          variant="outline"
+          <Button 
+            variant="outline"
           onClick={handleRefresh}
           disabled={isFetching}
         >
           <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
           {isFetching ? "Refreshing…" : "Refresh data"}
-        </Button>
+          </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6">
@@ -510,37 +510,37 @@ export function VendorShipping() {
             <p className="text-xs text-muted-foreground">Completed deliveries</p>
           </CardContent>
         </Card>
-        <Card>
+            <Card>
           <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-muted-foreground">Issues</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div className="text-3xl font-bold text-foreground">{stats.issues}</div>
             <p className="text-xs text-muted-foreground">Cancelled or refunded orders</p>
-          </CardContent>
-        </Card>
-        <Card>
+              </CardContent>
+            </Card>
+            <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Average shipping cost</CardTitle>
-          </CardHeader>
-          <CardContent>
+              </CardHeader>
+              <CardContent>
             <div className="text-3xl font-bold text-foreground">
               {formatCurrency(stats.averageShippingCost)}
-            </div>
+                      </div>
             <p className="text-xs text-muted-foreground">
               {stats.vendorHandled} shipments handled directly by you
             </p>
-          </CardContent>
-        </Card>
-      </div>
+              </CardContent>
+            </Card>
+          </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader>
+                <CardHeader>
             <CardTitle>Shipping methods</CardTitle>
             <CardDescription>Breakdown of how orders are dispatched</CardDescription>
-          </CardHeader>
+                </CardHeader>
           <CardContent className="space-y-4">
             {methodBreakdown.map((entry) => (
               <div key={entry.method} className="space-y-2">
@@ -549,27 +549,27 @@ export function VendorShipping() {
                   <span className="text-muted-foreground">
                     {entry.count} shipments · {entry.percentage.toFixed(0)}%
                   </span>
-                </div>
+                    </div>
                 <div className="h-2 w-full rounded-full bg-muted">
                   <div
                     className="h-2 rounded-full bg-primary transition-all"
                     style={{ width: `${entry.percentage}%` }}
                   />
-                </div>
-              </div>
+                    </div>
+                    </div>
             ))}
             {stats.total === 0 && (
               <p className="text-sm text-muted-foreground">
                 No shipments yet. Orders will appear here once customers start purchasing.
               </p>
             )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
         <Card>
-          <CardHeader>
+                <CardHeader>
             <CardTitle>Top destinations</CardTitle>
             <CardDescription>Where your recent orders are heading</CardDescription>
-          </CardHeader>
+                </CardHeader>
           <CardContent className="space-y-3">
             {topDestinations.length === 0 ? (
               <p className="text-sm text-muted-foreground">Destinations will appear once orders are placed.</p>
@@ -582,16 +582,16 @@ export function VendorShipping() {
                   <div className="flex items-center space-x-2">
                     <MapPin className="h-4 w-4 text-primary" />
                     <span className="text-sm font-medium text-foreground">{entry.destination}</span>
-                  </div>
+                    </div>
                   <span className="text-sm text-muted-foreground">{entry.count}</span>
-                </div>
+                  </div>
               ))
             )}
-          </CardContent>
-        </Card>
-      </div>
+                </CardContent>
+              </Card>
+          </div>
 
-      <Card>
+          <Card>
         <CardHeader>
           <CardTitle>Shipments</CardTitle>
           <CardDescription>Find orders by customer, destination, or status</CardDescription>
@@ -600,32 +600,32 @@ export function VendorShipping() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
+                    <Input
                 placeholder="Search by order number, customer, or destination…"
-                value={searchTerm}
+                      value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-full sm:w-[220px]">
                 <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
+                    </SelectTrigger>
+                    <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {Object.entries(SHIPMENT_STATUS_CONFIG).map(([status, config]) => (
                   <SelectItem key={status} value={status}>
                     {config.label}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
+                    </SelectContent>
+                  </Select>
+                </div>
           {isFetching && (
             <div className="flex items-center text-xs text-muted-foreground">
               <Loader2 className="mr-2 h-3 w-3 animate-spin" />
               Syncing latest data…
-            </div>
+              </div>
           )}
           {isLoading ? (
             <div className="py-16 text-center text-muted-foreground">Loading shipments…</div>
@@ -655,9 +655,9 @@ export function VendorShipping() {
                     const nextStatus = getNextStatus(shipment.status);
 
                     return (
-                      <TableRow key={shipment.id}>
+                    <TableRow key={shipment.id}>
                         <TableCell className="font-medium">{shipment.orderNumber}</TableCell>
-                        <TableCell>
+                      <TableCell>
                           <div className="space-y-1">
                             <p className="text-sm font-medium text-foreground">{shipment.customerName}</p>
                             <p className="text-xs text-muted-foreground">{shipment.customerEmail}</p>
@@ -689,9 +689,9 @@ export function VendorShipping() {
                         <TableCell className="text-right">
                           <div className="flex items-center justify-end space-x-2">
                             {nextStatus && (
-                              <Button
-                                size="sm"
-                                variant="outline"
+                          <Button
+                            size="sm"
+                            variant="outline"
                                 onClick={() =>
                                   updateStatus.mutate({
                                     orderId: shipment.id,
@@ -705,17 +705,17 @@ export function VendorShipping() {
                                 ) : (
                                   `Mark ${formatStatusLabel(nextStatus)}`
                                 )}
-                              </Button>
+                          </Button>
                             )}
-                            <Button
-                              size="sm"
+                          <Button
+                            size="sm"
                               onClick={() => openDetails(shipment)}
-                            >
+                          >
                               View
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                     );
                   })}
                 </TableBody>
@@ -729,8 +729,8 @@ export function VendorShipping() {
             totalItems={filteredShipments.length}
             itemsPerPage={itemsPerPage}
           />
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
       <Dialog open={isDetailOpen} onOpenChange={closeDetails}>
         <DialogContent className="max-w-3xl">
@@ -743,45 +743,45 @@ export function VendorShipping() {
           {selectedShipment && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Card>
+            <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-semibold text-foreground">
                       Order summary
                     </CardTitle>
-                  </CardHeader>
+              </CardHeader>
                   <CardContent className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center justify-between">
                       <span>Status</span>
                       <Badge variant={SHIPMENT_STATUS_CONFIG[selectedShipment.status].variant}>
                         {SHIPMENT_STATUS_CONFIG[selectedShipment.status].label}
                       </Badge>
-                    </div>
+                </div>
                     <div className="flex items-center justify-between">
                       <span>Placed on</span>
                       <span className="text-foreground">{selectedShipment.createdAtFormatted}</span>
-                    </div>
+                </div>
                     <div className="flex items-center justify-between">
                       <span>Last updated</span>
                       <span className="text-foreground">{selectedShipment.updatedAtFormatted}</span>
-                    </div>
+                </div>
                     <div className="flex items-center justify-between">
                       <span>Items</span>
                       <span className="text-foreground">{selectedShipment.itemsCount}</span>
-                    </div>
+                </div>
                     <div className="flex items-center justify-between">
                       <span>Total</span>
                       <span className="text-foreground font-medium">
                         {selectedShipment.totalAmountFormatted}
                       </span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base font-semibold text-foreground">
                       Customer contact
                     </CardTitle>
-                  </CardHeader>
+              </CardHeader>
                   <CardContent className="space-y-3 text-sm text-muted-foreground">
                     <div>
                       <p className="text-foreground font-medium">{selectedShipment.customerName}</p>
@@ -793,16 +793,16 @@ export function VendorShipping() {
                       <p className="italic">No phone number provided.</p>
                     )}
                     <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
+                        <Button 
+                          variant="outline"
                         size="sm"
                         onClick={() => (window.location.href = `mailto:${selectedShipment.customerEmail}`)}
                       >
                         <Mail className="mr-2 h-4 w-4" />
                         Email
-                      </Button>
+                        </Button>
                       {selectedShipment.customerPhone && (
-                        <Button
+                        <Button 
                           variant="outline"
                           size="sm"
                           onClick={() => (window.location.href = `tel:${selectedShipment.customerPhone}`)}
@@ -811,10 +811,10 @@ export function VendorShipping() {
                           Call
                         </Button>
                       )}
-                    </div>
+                      </div>
                   </CardContent>
                 </Card>
-              </div>
+                    </div>
 
               <Card>
                 <CardHeader className="pb-2">
@@ -884,10 +884,10 @@ export function VendorShipping() {
                   </CardContent>
                 </Card>
               )}
-            </div>
+                        </div>
           )}
-        </DialogContent>
-      </Dialog>
+                    </DialogContent>
+                  </Dialog>
     </div>
   );
 }

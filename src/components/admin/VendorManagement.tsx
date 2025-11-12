@@ -47,7 +47,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
-import { API_BASE_URL } from '@/lib/api-config';
+import { apiFetch } from "@/lib/api-client";
 
 interface Vendor {
   id: string;
@@ -80,37 +80,33 @@ const fetchVendors = async (params: { page?: number; limit?: number; status?: st
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.append('page', params.page.toString());
   if (params.limit) queryParams.append('limit', params.limit.toString());
-  if (params.status) queryParams.append('status', params.status);
-  if (params.search) queryParams.append('search', params.search);
+  if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+  if (params.search && params.search.trim()) queryParams.append('search', params.search.trim());
 
-  const response = await fetch(`${API_BASE_URL}/admin/vendors?${queryParams}`, {
-    headers: {
-      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
-    }
-  });
-
-  if (!response.ok) {
+  const response = await apiFetch<{ success: boolean; data: Vendor[]; pagination: any }>(`/admin/vendors?${queryParams.toString()}`);
+  
+  if (!response.success || !response.data) {
     throw new Error('Failed to fetch vendors');
   }
 
-  return response.json();
+  return {
+    success: response.success,
+    data: response.data,
+    pagination: response.pagination
+  };
 };
 
 const updateVendorStatus = async (vendorId: string, isActive: boolean) => {
-  const response = await fetch(`${API_BASE_URL}/admin/vendors/${vendorId}/status`, {
+  const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/vendors/${vendorId}/status`, {
     method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${localStorage.getItem('afrigos-token')}`
-    },
     body: JSON.stringify({ isActive, isVerified: isActive })
   });
 
-  if (!response.ok) {
-    throw new Error('Failed to update vendor status');
+  if (!response.success) {
+    throw new Error(response.message || 'Failed to update vendor status');
   }
 
-  return response.json();
+  return response;
 };
 
 export function VendorManagement() {
@@ -128,9 +124,14 @@ export function VendorManagement() {
   const [selectedStoreVendor, setSelectedStoreVendor] = useState<Vendor | null>(null);
   const { toast } = useToast();
 
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [statusFilter, searchTerm]);
+
   // Fetch vendors using TanStack Query
-  const { data: vendorsResponse, isLoading, error } = useQuery({
-    queryKey: ['vendors', currentPage, statusFilter, searchTerm],
+  const { data: vendorsResponse, isLoading, error, refetch } = useQuery({
+    queryKey: ['admin-vendors', currentPage, statusFilter, searchTerm],
     queryFn: () => fetchVendors({
       page: currentPage,
       limit: itemsPerPage,
@@ -146,14 +147,15 @@ export function VendorManagement() {
     onSuccess: (data) => {
       toast({
         title: "Status Updated",
-        description: data.message,
+        description: data.message || "Vendor status updated successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ['vendors'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-vendors'] });
+      refetch();
     },
     onError: (error: Error) => {
       toast({
         title: "Update Failed",
-        description: error.message,
+        description: error.message || "Failed to update vendor status",
         variant: "destructive",
       });
     },
@@ -223,11 +225,26 @@ export function VendorManagement() {
     updateStatusMutation.mutate({ vendorId, isActive: false });
   };
 
-  const handleContactVendor = (vendorId: string, method: string) => {
-    toast({
-      title: "Contact Initiated",
-      description: `Contacting vendor ${vendorId} via ${method}`,
-    });
+  const handleContactVendor = async (vendor: Vendor, method: string) => {
+    try {
+      if (method === "email" && vendor.email) {
+        window.location.href = `mailto:${vendor.email}?subject=Vendor Inquiry`;
+      } else if (method === "phone" && vendor.phone && vendor.phone !== 'N/A') {
+        window.location.href = `tel:${vendor.phone}`;
+      } else {
+        toast({
+          title: "Contact Information Not Available",
+          description: `Vendor ${method} information is not available.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Contact Failed",
+        description: "Failed to initiate contact. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -281,20 +298,33 @@ export function VendorManagement() {
       </Card>
 
       {/* Vendor Tabs */}
-      <Tabs defaultValue="all" className="space-y-4">
+      <Tabs value={statusFilter} onValueChange={setStatusFilter} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5 bg-card">
-          <TabsTrigger value="all" onClick={() => setStatusFilter("all")}>All ({pagination.total})</TabsTrigger>
-          <TabsTrigger value="pending" onClick={() => setStatusFilter("pending")}>Pending</TabsTrigger>
-          <TabsTrigger value="approved" onClick={() => setStatusFilter("approved")}>Approved</TabsTrigger>
-          <TabsTrigger value="review" onClick={() => setStatusFilter("review")}>Review</TabsTrigger>
-          <TabsTrigger value="suspended" onClick={() => setStatusFilter("suspended")}>Suspended</TabsTrigger>
+          <TabsTrigger value="all">All ({pagination.total})</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+          <TabsTrigger value="approved">Approved</TabsTrigger>
+          <TabsTrigger value="review">Review</TabsTrigger>
+          <TabsTrigger value="suspended">Suspended</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="all" className="space-y-4">
+        {/* Render the same table for all tabs - filtering is handled by the API */}
+        <TabsContent value={statusFilter} className="space-y-4">
           <Card className="border-0 shadow-sm">
             <CardHeader>
-              <CardTitle>All Vendors</CardTitle>
-              <CardDescription>Complete list of marketplace vendors</CardDescription>
+              <CardTitle>
+                {statusFilter === "all" && "All Vendors"}
+                {statusFilter === "pending" && "Pending Approval"}
+                {statusFilter === "approved" && "Approved Vendors"}
+                {statusFilter === "review" && "Under Review"}
+                {statusFilter === "suspended" && "Suspended Vendors"}
+              </CardTitle>
+              <CardDescription>
+                {statusFilter === "all" && "Complete list of marketplace vendors"}
+                {statusFilter === "pending" && "Vendors awaiting approval"}
+                {statusFilter === "approved" && "Successfully approved vendors"}
+                {statusFilter === "review" && "Vendors currently being reviewed"}
+                {statusFilter === "suspended" && "Suspended vendors"}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -323,13 +353,13 @@ export function VendorManagement() {
                   ) : error ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-destructive">
-                        Error loading vendors: {error.message}
+                        Error loading vendors: {error instanceof Error ? error.message : 'Unknown error'}
                       </TableCell>
                     </TableRow>
                   ) : vendors.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                        No vendors found
+                        No vendors found{searchTerm ? ` matching "${searchTerm}"` : ''} {statusFilter !== 'all' ? `with status "${statusFilter}"` : ''}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -361,7 +391,7 @@ export function VendorManagement() {
                       <TableCell className="font-mono">{vendor.revenue}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
-                          <span className="text-sm">★ {vendor.rating}</span>
+                          <span className="text-sm">★ {vendor.rating > 0 ? vendor.rating.toFixed(1) : 'N/A'}</span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -386,16 +416,18 @@ export function VendorManagement() {
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleContactVendor(vendor.id, "email")}
+                            onClick={() => handleContactVendor(vendor, "email")}
                               disabled={updateStatusMutation.isPending}
+                            title="Email Vendor"
                           >
                             <Mail className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="ghost" 
                             size="sm"
-                            onClick={() => handleContactVendor(vendor.id, "phone")}
+                            onClick={() => handleContactVendor(vendor, "phone")}
                               disabled={updateStatusMutation.isPending}
+                            title="Call Vendor"
                           >
                             <Phone className="h-4 w-4" />
                           </Button>
@@ -436,82 +468,15 @@ export function VendorManagement() {
                   )}
                 </TableBody>
               </Table>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                totalItems={pagination.total}
-                itemsPerPage={itemsPerPage}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Other tab contents would be similar but filtered */}
-        <TabsContent value="pending">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-warning" />
-                <span>Pending Approval</span>
-              </CardTitle>
-              <CardDescription>Vendors awaiting approval</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Use the "All" tab to view all vendors. Filtering by status will be implemented soon.
-                        </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="approved">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <CheckCircle className="h-5 w-5 text-success" />
-                <span>Approved Vendors</span>
-              </CardTitle>
-              <CardDescription>Successfully approved vendors</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Use the "All" tab to view all vendors. Filtering by status will be implemented soon.
-                        </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="review">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Clock className="h-5 w-5 text-primary" />
-                <span>Under Review</span>
-              </CardTitle>
-              <CardDescription>Vendors currently being reviewed</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Use the "All" tab to view all vendors. Filtering by status will be implemented soon.
-                        </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="suspended">
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <XCircle className="h-5 w-5 text-destructive" />
-                <span>Suspended Vendors</span>
-              </CardTitle>
-              <CardDescription>Suspended vendors</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Use the "All" tab to view all vendors. Filtering by status will be implemented soon.
-                        </div>
+              {pagination.total > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                  totalItems={pagination.total}
+                  itemsPerPage={itemsPerPage}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -559,11 +524,11 @@ export function VendorManagement() {
                 <div className="mt-4">
                   <h4 className="font-medium mb-2">Quick Actions</h4>
                   <div className="flex space-x-2">
-                    <Button size="sm" onClick={() => handleContactVendor(selectedVendor.id, "email")}>
+                    <Button size="sm" onClick={() => handleContactVendor(selectedVendor, "email")}>
                       <Mail className="h-4 w-4 mr-2" />
                       Send Email
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => handleContactVendor(selectedVendor.id, "phone")}>
+                    <Button size="sm" variant="outline" onClick={() => handleContactVendor(selectedVendor, "phone")}>
                       <Phone className="h-4 w-4 mr-2" />
                       Call
                     </Button>

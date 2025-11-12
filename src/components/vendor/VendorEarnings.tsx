@@ -486,21 +486,21 @@ export function VendorEarnings() {
               />
               <p className="text-sm text-muted-foreground">
                 Available balance: <span className="font-semibold">{formatCurrency(summary?.withdrawalBalance || 0)}</span>
-              </p>
-            </div>
+                    </p>
+                  </div>
             {summary && summary.withdrawalBalance === 0 && (
               <div className="rounded-md bg-yellow-50 border border-yellow-200 p-3 text-sm text-yellow-800">
                 <AlertTriangle className="h-4 w-4 inline mr-2" />
                 You don't have any funds available for withdrawal. Earnings become available immediately after order completion.
-              </div>
+                    </div>
             )}
             <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-800">
               <p className="font-semibold mb-1">Stripe Connect Payout</p>
               <p className="text-xs">
                 Your withdrawal will be processed through Stripe Connect and transferred directly to your bank account. 
                 Funds typically arrive within 1-2 business days. You'll receive a transfer ID for tracking.
-              </p>
-            </div>
+                    </p>
+                  </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setWithdrawalDialogOpen(false)}>
@@ -518,7 +518,7 @@ export function VendorEarnings() {
               ) : (
                 "Process Withdrawal"
               )}
-            </Button>
+                      </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
