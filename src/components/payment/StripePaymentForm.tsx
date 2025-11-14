@@ -22,7 +22,8 @@ const resolvePaymentMessage = (paymentIntent: PaymentIntent | null) => {
     case "processing":
       return "Your payment is processing. We’ll update you once it’s complete.";
     case "requires_payment_method":
-      return "Your payment was not successful, please try another payment method.";
+      // return "Your payment was not successful, please try another payment method.";
+      return null; // Let Stripe's error message handle this
     default:
       return null;
   }
@@ -130,9 +131,9 @@ export function StripePaymentForm({
     } else if (status === "processing") {
       setMessage("Your payment is processing. We’ll update you once it’s complete.");
     } else if (status === "requires_payment_method") {
-      const fallbackMessage = "Your payment was not successful, please try again.";
-      setMessage(fallbackMessage);
-      onError(fallbackMessage);
+      // const fallbackMessage = "Your payment was not successful, please try again.";
+      // setMessage(fallbackMessage);
+      // onError(fallbackMessage);
     } else {
       setMessage("Payment status unknown. Please check your card details and try again.");
     }
