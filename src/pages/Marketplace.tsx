@@ -98,19 +98,23 @@ export default function Marketplace() {
     
     // Direct name mappings - using EXACT category names as they appear online
     const imageMap: Record<string, string> = {
-      // Exact matches - must match exactly how they appear online (case-insensitive)
-      'food': 'food.jpg',
+      // Exact matches - must match exactly how they appear online
+      'food': 'foods.jpg',
+      'foods': 'foods.jpg',
       'handcraft': 'handcraft.jpg',
       'scent and waxes': 'scentandwaxes.jpg',
       'furniture': 'furtniture.jpg', // Note: keeping the typo from filename
-      'interior decoration': 'furtniture.jpg', // Using furniture image
+      'interior decoration': 'interior.jpg',
       'car/van hire': 'carvanhire.jpg',
       'delivery': 'delivery.jpg',
-      'short term rent': 'shorttermrent.jpg',
+      'short term rent': 'shorttermrents.jpg',
       'lettings': 'lettings.jpg',
       'event': 'events.jpg',
       'herbal': 'herbal.jpg',
-      'footwear': 'footwear.jpg',
+      'foot wears': 'footwear.jpg',
+      'hair care': 'haircare.jpg',
+      'haircare': 'haircare.jpg',
+      'clothing': 'clothing.jpg',
     };
     
     // Check direct match first
