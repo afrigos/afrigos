@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Twitter, Instagram, Mail, MapPin } from "lucide-react";
+import { Facebook, Twitter, Instagram, Mail, Phone } from "lucide-react";
 
 export function CustomerFooter() {
   return (
@@ -83,13 +83,23 @@ export function CustomerFooter() {
           <div>
             <h3 className="font-bold text-lg mb-4">Get in Touch</h3>
             <ul className="space-y-3 text-sm">
-              <li className="flex items-center gap-2 text-muted-foreground">
-                <Mail className="h-4 w-4" />
-                <span>enquiries@afrigos.com</span>
+              <li className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <a 
+                  href="mailto:enquiries@afrigos.com" 
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  enquiries@afrigos.com
+                </a>
               </li>
-              <li className="flex items-start gap-2 text-muted-foreground">
-                <MapPin className="h-4 w-4 mt-0.5" />
-                <span>216-218 slack lane DE22 3EE</span>
+              <li className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <a 
+                  href="tel:+447304276064" 
+                  className="text-muted-foreground hover:text-primary transition-colors"
+                >
+                  +44 7304 276064
+                </a>
               </li>
             </ul>
           </div>

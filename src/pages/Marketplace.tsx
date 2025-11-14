@@ -108,14 +108,14 @@ export default function Marketplace() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-center gap-2 text-sm">
             <Flame className="h-4 w-4 text-yellow-300" />
-            <span className="font-semibold">FLASH SALE: Up to 50% OFF on Selected Items</span>
+            <span className="font-semibold">FLASH SALE: 5-10% OFF on Selected Items</span>
           </div>
         </div>
       </section>
 
       {/* Main Banner Slider */}
       <section className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 md:py-6">
+        <div className="container mx-auto px-4 py-3 md:py-4 lg:py-6">
           <Carousel
             setApi={setApi}
             opts={{
@@ -128,13 +128,14 @@ export default function Marketplace() {
               {banners.map((banner) => (
                 <CarouselItem key={banner.id} className="pl-2 md:pl-4 basis-full">
                   <Link to={banner.link || '/products'}>
-                    <div className="rounded-lg overflow-hidden relative h-48 md:h-64 lg:h-80 w-full">
+                    <div className="rounded-lg overflow-hidden relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[21/8] lg:aspect-[21/7] xl:aspect-[21/6]">
                       {/* Background image or gradient */}
                       {banner.isImage ? (
                         <img 
                           src={banner.imageUrl} 
                           alt={banner.title}
                           className="absolute inset-0 w-full h-full object-cover"
+                          loading="eager"
                           onError={(e) => {
                             // Fallback to gradient if image fails to load
                             e.currentTarget.style.display = 'none';
@@ -156,8 +157,8 @@ export default function Marketplace() {
             </CarouselContent>
             {banners.length > 1 && (
               <>
-                <CarouselPrevious className="left-2 md:left-4 h-8 w-8 md:h-10 md:w-10 bg-white/90 hover:bg-white border-gray-200 shadow-lg" />
-                <CarouselNext className="right-2 md:right-4 h-8 w-8 md:h-10 md:w-10 bg-white/90 hover:bg-white border-gray-200 shadow-lg" />
+                <CarouselPrevious className="left-1 md:left-2 lg:left-4 h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 bg-white/90 hover:bg-white border-gray-200 shadow-lg" />
+                <CarouselNext className="right-1 md:right-2 lg:right-4 h-7 w-7 sm:h-8 sm:w-8 md:h-10 md:w-10 bg-white/90 hover:bg-white border-gray-200 shadow-lg" />
               </>
             )}
           </Carousel>
@@ -250,6 +251,54 @@ export default function Marketplace() {
               <p>No featured products available at the moment.</p>
             </div>
           )}
+        </div>
+      </section>
+
+      {/* Portrait Ad Section */}
+      <section className="py-8 md:py-12 bg-gray-50">
+        <div className="container mx-auto px-4">
+          {/* Mobile: Horizontal Scrollable Carousel */}
+          <div className="block md:hidden">
+            <Carousel
+              opts={{
+                align: "start",
+                loop: false,
+                dragFree: true,
+              }}
+              className="w-full"
+            >
+              <CarouselContent className="-ml-2">
+                {[1, 2, 3, 4].map((adNum) => (
+                  <CarouselItem key={adNum} className="pl-2 basis-auto">
+                    <Link to="/products" className="block w-[280px]">
+                      <div className="rounded-lg overflow-hidden relative w-full aspect-[2/3] bg-gradient-to-br from-primary/20 to-primary/5 hover:shadow-lg transition-shadow cursor-pointer">
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <p className="text-sm text-muted-foreground">Portrait Ad {adNum}</p>
+                        </div>
+                      </div>
+                    </Link>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </Carousel>
+          </div>
+
+          {/* Desktop: Grid Layout */}
+          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 justify-items-center">
+            {[1, 2, 3, 4].map((adNum) => (
+              <Link 
+                key={adNum} 
+                to="/products" 
+                className="block w-full max-w-[300px] lg:max-w-[400px]"
+              >
+                <div className="rounded-lg overflow-hidden relative w-full aspect-[2/3] bg-gradient-to-br from-primary/20 to-primary/5 hover:shadow-lg transition-shadow cursor-pointer">
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <p className="text-sm text-muted-foreground">Portrait Ad {adNum}</p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 

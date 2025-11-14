@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Mail, MapPin, Send, MessageSquare } from "lucide-react";
+import { Mail, Phone, Send, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Contact() {
@@ -69,11 +69,17 @@ export default function Contact() {
                     <h3 className="font-semibold mb-1">Email</h3>
                     <a 
                       href="mailto:enquiries@afrigos.com" 
-                      className="text-primary hover:underline"
+                      className="text-primary hover:underline block"
                     >
                       enquiries@afrigos.com
                     </a>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <a 
+                      href="mailto:support@afrigos.com" 
+                      className="text-primary hover:underline block mt-1"
+                    >
+                      support@afrigos.com
+                    </a>
+                    <p className="text-sm text-muted-foreground mt-2">
                       We typically respond within 24 hours
                     </p>
                   </div>
@@ -81,14 +87,24 @@ export default function Contact() {
 
                 <div className="flex items-start gap-4">
                   <div className="p-2 bg-primary/10 rounded-lg">
-                    <MapPin className="h-5 w-5 text-primary" />
+                    <Phone className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Address</h3>
-                    <p className="text-muted-foreground">
-                      216-218 slack lane<br />
-                      DE22 3EE<br />
-                      United Kingdom
+                    <h3 className="font-semibold mb-1">Telephone</h3>
+                    <a 
+                      href="tel:+441234567890" 
+                      className="text-primary hover:underline block"
+                    >
+                      +44 (0) 123 456 7890
+                    </a>
+                    <a 
+                      href="tel:+441234567891" 
+                      className="text-primary hover:underline block mt-1"
+                    >
+                      +44 (0) 123 456 7891
+                    </a>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Available during business hours
                     </p>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,132 +36,106 @@ import {
   Receipt,
   Calculator,
   Banknote,
-  Wallet
+  Wallet,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiFetch } from "@/lib/api-client";
 
-// Mock financial data
-const financialData = {
-  overview: {
-    totalRevenue: 124750,
-    totalCommissions: 18712,
-    pendingPayments: 4560,
-    refundsIssued: 2340,
-    avgOrderValue: 36.08,
-    commissionRate: 15,
-    growthRate: 12.5,
-    profitMargin: 28.3
-  },
-  payments: [
-    {
-      id: "PAY001",
-      vendorId: "V001",
-      vendorName: "Mama Asha's Kitchen",
-      amount: 1245.50,
-      commission: 186.83,
-      status: "pending",
-      dueDate: "2024-01-25",
-      orders: 45,
-      period: "Jan 2024",
-      paymentMethod: "bank_transfer"
-    },
-    {
-      id: "PAY002",
-      vendorId: "V002",
-      vendorName: "Adunni Beauty",
-      amount: 987.30,
-      commission: 148.10,
-      status: "paid",
-      dueDate: "2024-01-20",
-      orders: 32,
-      period: "Jan 2024",
-      paymentMethod: "bank_transfer"
-    },
-    {
-      id: "PAY003",
-      vendorId: "V003",
-      vendorName: "Kente Collections",
-      amount: 567.80,
-      commission: 85.17,
-      status: "processing",
-      dueDate: "2024-01-22",
-      orders: 18,
-      period: "Jan 2024",
-      paymentMethod: "paypal"
-    }
-  ],
-  refunds: [
-    {
-      id: "REF001",
-      orderId: "ORD-2024-001",
-      customerName: "John Smith",
-      amount: 89.99,
-      reason: "Product damaged",
-      status: "approved",
-      requestedDate: "2024-01-19",
-      processedDate: "2024-01-20",
-      vendorId: "V003"
-    },
-    {
-      id: "REF002",
-      orderId: "ORD-2024-002",
-      customerName: "Sarah Johnson",
-      amount: 24.99,
-      reason: "Wrong item received",
-      status: "pending",
-      requestedDate: "2024-01-20",
-      processedDate: null,
-      vendorId: "V002"
-    }
-  ],
-  transactions: [
-    {
-      id: "TXN001",
-      type: "commission",
-      amount: 186.83,
-      vendor: "Mama Asha's Kitchen",
-      date: "2024-01-20",
-      status: "completed",
-      description: "Commission payment for Jan 2024"
-    },
-    {
-      id: "TXN002",
-      type: "refund",
-      amount: -89.99,
-      vendor: "Kente Collections",
-      date: "2024-01-20",
-      status: "completed",
-      description: "Refund for damaged product"
-    },
-    {
-      id: "TXN003",
-      type: "platform_fee",
-      amount: 45.50,
-      vendor: "System",
-      date: "2024-01-19",
-      status: "completed",
-      description: "Platform processing fee"
-    }
-  ],
-  commissionRates: [
-    { category: "Food & Beverages", rate: 12, minOrder: 10 },
-    { category: "Fashion & Clothing", rate: 15, minOrder: 25 },
-    { category: "Beauty & Personal Care", rate: 18, minOrder: 15 },
-    { category: "Health & Wellness", rate: 20, minOrder: 20 },
-    { category: "Home & Garden", rate: 14, minOrder: 30 }
-  ]
+// Financial data interfaces
+interface FinancialOverview {
+  totalRevenue: number;
+  totalCommissions: number;
+  pendingPayments: number;
+  refundsIssued: number;
+  avgOrderValue: number;
+  commissionRate: number;
+  growthRate: number;
+  profitMargin: number;
+}
+
+interface Payment {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  amount: number;
+  commission: number;
+  status: string;
+  dueDate: string;
+  orders: number;
+  period: string;
+  paymentMethod: string;
+}
+
+interface Refund {
+  id: string;
+  orderId: string;
+  customerName: string;
+  amount: number;
+  reason: string;
+  status: string;
+  requestedDate: string;
+  processedDate: string | null;
+  vendorId: string;
+}
+
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  vendor: string;
+  date: string;
+  status: string;
+  description: string;
+}
+
+interface CommissionRate {
+  category: string;
+  rate: number;
+  minOrder: number;
+}
+
+interface FinancialData {
+  overview: FinancialOverview;
+  payments: Payment[];
+  refunds: Refund[];
+  transactions: Transaction[];
+  commissionRates: CommissionRate[];
+}
+
+interface FinancialResponse {
+  success: boolean;
+  data: FinancialData;
+}
+
+// Fetch financial data
+const fetchFinancialData = async (period: string = '30'): Promise<FinancialData> => {
+  const response = await apiFetch<FinancialResponse>(`/admin/financial?period=${period}`);
+  
+  if (!response.success || !response.data) {
+    throw new Error('Failed to fetch financial data');
+  }
+
+  return response.data;
 };
 
 export function FinancialManagement() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedPayment, setSelectedPayment] = useState<any>(null);
-  const [selectedRefund, setSelectedRefund] = useState<any>(null);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedRefund, setSelectedRefund] = useState<Refund | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [period, setPeriod] = useState("30");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  // Fetch financial data
+  const { data: financialData, isLoading: isLoadingData, error, refetch } = useQuery({
+    queryKey: ['admin-financial', period],
+    queryFn: () => fetchFinancialData(period)
+  });
 
   const handleProcessPayment = async (paymentId: string) => {
     setIsLoading(true);
@@ -273,19 +248,70 @@ export function FinancialManagement() {
     );
   };
 
-  const filteredPayments = financialData.payments.filter(payment => {
+  const filteredPayments = (financialData?.payments || []).filter(payment => {
     const matchesSearch = payment.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          payment.id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === "all" || payment.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
 
-  const filteredRefunds = financialData.refunds.filter(refund => {
+  const filteredRefunds = (financialData?.refunds || []).filter(refund => {
     const matchesSearch = refund.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          refund.orderId.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterStatus === "all" || refund.status === filterStatus;
     return matchesSearch && matchesFilter;
   });
+
+  // Show loading state
+  if (isLoadingData) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Financial Management</h1>
+            <p className="text-muted-foreground">Manage payments, commissions, refunds, and financial reporting</p>
+          </div>
+        </div>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <span className="ml-2 text-muted-foreground">Loading financial data...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">Financial Management</h1>
+            <p className="text-muted-foreground">Manage payments, commissions, refunds, and financial reporting</p>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-12 text-center">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-4 text-destructive" />
+            <p className="text-destructive">Error loading financial data: {error instanceof Error ? error.message : 'Unknown error'}</p>
+            <Button onClick={() => refetch()} className="mt-4">Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Use default values if data is not available
+  const overview = financialData?.overview || {
+    totalRevenue: 0,
+    totalCommissions: 0,
+    pendingPayments: 0,
+    refundsIssued: 0,
+    avgOrderValue: 0,
+    commissionRate: 0,
+    growthRate: 0,
+    profitMargin: 0
+  };
 
   return (
     <div className="space-y-6">
@@ -296,6 +322,18 @@ export function FinancialManagement() {
           <p className="text-muted-foreground">Manage payments, commissions, refunds, and financial reporting</p>
         </div>
         <div className="flex items-center space-x-2">
+          <Select value={period} onValueChange={setPeriod}>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">Last 7 days</SelectItem>
+              <SelectItem value="30">Last 30 days</SelectItem>
+              <SelectItem value="90">Last 3 months</SelectItem>
+              <SelectItem value="180">Last 6 months</SelectItem>
+              <SelectItem value="365">Last year</SelectItem>
+            </SelectContent>
+          </Select>
           <Button 
             variant="outline" 
             size="sm"
@@ -323,10 +361,10 @@ export function FinancialManagement() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(financialData.overview.totalRevenue)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(overview.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground flex items-center mt-1">
-              {getGrowthIcon(financialData.overview.growthRate)}
-              +{financialData.overview.growthRate}% from last month
+              {getGrowthIcon(overview.growthRate)}
+              {overview.growthRate >= 0 ? '+' : ''}{overview.growthRate.toFixed(1)}% from previous period
             </p>
           </CardContent>
         </Card>
@@ -336,9 +374,9 @@ export function FinancialManagement() {
             <Calculator className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(financialData.overview.totalCommissions)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(overview.totalCommissions)}</div>
             <p className="text-xs text-muted-foreground flex items-center mt-1">
-              {financialData.overview.commissionRate}% commission rate
+              {overview.commissionRate.toFixed(1)}% commission rate
             </p>
           </CardContent>
         </Card>
@@ -348,7 +386,7 @@ export function FinancialManagement() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(financialData.overview.pendingPayments)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(overview.pendingPayments)}</div>
             <p className="text-xs text-muted-foreground flex items-center mt-1">
               <AlertTriangle className="h-3 w-3 mr-1 text-warning" />
               Requires attention
@@ -361,7 +399,7 @@ export function FinancialManagement() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{financialData.overview.profitMargin}%</div>
+            <div className="text-2xl font-bold">{overview.profitMargin.toFixed(1)}%</div>
             <p className="text-xs text-muted-foreground flex items-center mt-1">
               <Target className="h-3 w-3 mr-1 text-success" />
               Target: 25%
@@ -389,7 +427,7 @@ export function FinancialManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {financialData.commissionRates.map((rate) => (
+                  {(financialData?.commissionRates || []).map((rate) => (
                     <div key={rate.category} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
                       <div>
                         <p className="font-medium">{rate.category}</p>
@@ -411,7 +449,7 @@ export function FinancialManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {financialData.transactions.slice(0, 5).map((transaction) => (
+                  {(financialData?.transactions || []).slice(0, 5).map((transaction) => (
                     <div key={transaction.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg">
                       <div className="flex items-center space-x-3">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -488,7 +526,18 @@ export function FinancialManagement() {
 
           {/* Payments List */}
           <div className="space-y-2">
-            {filteredPayments.map((payment) => (
+            {filteredPayments.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No payments found</h3>
+                  <p className="text-muted-foreground">
+                    {searchTerm ? `No payments match "${searchTerm}"` : 'No payments available for the selected period'}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              filteredPayments.map((payment) => (
               <Card key={payment.id} className="cursor-pointer hover:bg-muted/50">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
@@ -522,7 +571,8 @@ export function FinancialManagement() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              ))
+            )}
           </div>
         </TabsContent>
 
@@ -566,54 +616,66 @@ export function FinancialManagement() {
 
           {/* Refunds List */}
           <div className="space-y-2">
-            {filteredRefunds.map((refund) => (
-              <Card key={refund.id} className="cursor-pointer hover:bg-muted/50">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
-                        <ArrowDownRight className="h-5 w-5 text-destructive" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium">{refund.customerName}</h4>
-                        <p className="text-sm text-muted-foreground">Order: {refund.orderId}</p>
-                        <p className="text-sm text-muted-foreground">Reason: {refund.reason}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-destructive">{formatCurrency(refund.amount)}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(refund.requestedDate).toLocaleDateString()}
-                      </p>
-                      <div className="flex items-center space-x-2 mt-1">
-                        {getStatusBadge(refund.status)}
-                        {refund.status === "pending" && (
-                          <div className="flex space-x-1">
-                            <Button 
-                              size="sm"
-                              onClick={() => handleApproveRefund(refund.id)}
-                              disabled={isLoading}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Approve
-                            </Button>
-                            <Button 
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleRejectRefund(refund.id, "Invalid reason")}
-                              disabled={isLoading}
-                            >
-                              <XCircle className="h-4 w-4 mr-1" />
-                              Reject
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+            {filteredRefunds.length === 0 ? (
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <ArrowDownRight className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No refunds found</h3>
+                  <p className="text-muted-foreground">
+                    {searchTerm ? `No refunds match "${searchTerm}"` : 'No refunds available for the selected period'}
+                  </p>
                 </CardContent>
               </Card>
-            ))}
+            ) : (
+              filteredRefunds.map((refund) => (
+                <Card key={refund.id} className="cursor-pointer hover:bg-muted/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center">
+                          <ArrowDownRight className="h-5 w-5 text-destructive" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium">{refund.customerName}</h4>
+                          <p className="text-sm text-muted-foreground">Order: {refund.orderId}</p>
+                          <p className="text-sm text-muted-foreground">Reason: {refund.reason}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-destructive">{formatCurrency(refund.amount)}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(refund.requestedDate).toLocaleDateString()}
+                        </p>
+                        <div className="flex items-center space-x-2 mt-1">
+                          {getStatusBadge(refund.status)}
+                          {refund.status === "pending" && (
+                            <div className="flex space-x-1">
+                              <Button 
+                                size="sm"
+                                onClick={() => handleApproveRefund(refund.id)}
+                                disabled={isLoading}
+                              >
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Approve
+                              </Button>
+                              <Button 
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRejectRefund(refund.id, "Invalid reason")}
+                                disabled={isLoading}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </TabsContent>
 
@@ -625,8 +687,15 @@ export function FinancialManagement() {
               <CardDescription>Complete financial transaction log</CardDescription>
             </CardHeader>
             <CardContent>
+              {(financialData?.transactions || []).length === 0 ? (
+                <div className="text-center py-12">
+                  <Receipt className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">No transactions found</h3>
+                  <p className="text-muted-foreground">No transactions available for the selected period</p>
+                </div>
+              ) : (
               <div className="space-y-3">
-                {financialData.transactions.map((transaction) => (
+                  {(financialData?.transactions || []).map((transaction) => (
                   <div key={transaction.id} className="flex items-center justify-between p-4 bg-muted/20 rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
@@ -665,6 +734,7 @@ export function FinancialManagement() {
                   </div>
                 ))}
               </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

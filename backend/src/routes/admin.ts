@@ -2648,4 +2648,340 @@ router.post('/orders/:id/resend-confirmation', requireAdmin, async (req: any, re
   }
 });
 
+// @desc    Get financial overview and data
+// @route   GET /api/v1/admin/financial
+// @access  Private (Admin)
+router.get('/financial', requireAdmin, async (req: any, res: any) => {
+  try {
+    const { period = '30' } = req.query; // days
+    const periodDays = parseInt(period as string);
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - periodDays);
+
+    // Calculate previous period for growth comparison
+    const previousStartDate = new Date(startDate);
+    previousStartDate.setDate(previousStartDate.getDate() - periodDays);
+    const previousEndDate = new Date(startDate);
+
+    // Get financial overview
+    const [
+      totalRevenueResult,
+      previousRevenueResult,
+      totalCommissionsResult,
+      pendingPaymentsResult,
+      refundsResult,
+      avgOrderValueResult,
+      totalOrdersResult
+    ] = await Promise.all([
+      // Current period revenue
+      prisma.payment.aggregate({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: startDate }
+        },
+        _sum: { amount: true }
+      }),
+      // Previous period revenue
+      prisma.payment.aggregate({
+        where: {
+          status: 'COMPLETED',
+          createdAt: { gte: previousStartDate, lt: previousEndDate }
+        },
+        _sum: { amount: true }
+      }),
+      // Total commissions
+      prisma.vendorEarning.aggregate({
+        where: {
+          createdAt: { gte: startDate }
+        },
+        _sum: { commission: true }
+      }),
+      // Pending payments (vendor earnings that haven't been paid out)
+      prisma.vendorEarning.aggregate({
+        where: {
+          status: { in: ['PENDING', 'PROCESSING'] },
+          movedToWithdrawal: true
+        },
+        _sum: { netAmount: true }
+      }),
+      // Refunds
+      prisma.order.aggregate({
+        where: {
+          status: 'REFUNDED',
+          updatedAt: { gte: startDate }
+        },
+        _sum: { totalAmount: true }
+      }),
+      // Average order value
+      prisma.order.aggregate({
+        where: {
+          paymentStatus: 'COMPLETED',
+          createdAt: { gte: startDate }
+        },
+        _avg: { totalAmount: true },
+        _count: { id: true }
+      }),
+      // Total orders
+      prisma.order.count({
+        where: {
+          paymentStatus: 'COMPLETED',
+          createdAt: { gte: startDate }
+        }
+      })
+    ]);
+
+    const totalRevenue = Number(totalRevenueResult._sum.amount || 0);
+    const previousRevenue = Number(previousRevenueResult._sum.amount || 0);
+    const totalCommissions = Number(totalCommissionsResult._sum.commission || 0);
+    const pendingPayments = Number(pendingPaymentsResult._sum.netAmount || 0);
+    const refundsIssued = Number(refundsResult._sum.totalAmount || 0);
+    const avgOrderValue = Number(avgOrderValueResult._avg.totalAmount || 0);
+    const totalOrders = totalOrdersResult;
+
+    // Calculate growth rate
+    const growthRate = previousRevenue > 0 
+      ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 
+      : 0;
+
+    // Calculate commission rate (average)
+    const commissionRate = totalRevenue > 0 
+      ? (totalCommissions / totalRevenue) * 100 
+      : 15; // Default 15%
+
+    // Calculate profit margin (revenue - commissions - refunds) / revenue
+    const profitMargin = totalRevenue > 0 
+      ? ((totalRevenue - totalCommissions - refundsIssued) / totalRevenue) * 100 
+      : 0;
+
+    // Get vendor payments (earnings)
+    const vendorPayments = await prisma.vendorEarning.findMany({
+      where: {
+        createdAt: { gte: startDate }
+      },
+      include: {
+        vendor: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            }
+          }
+        },
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100
+    });
+
+    // Transform vendor payments
+    const payments = vendorPayments.map((earning) => {
+      const vendor = earning.vendor as any;
+      return {
+        id: earning.id,
+        vendorId: earning.vendorId,
+        vendorName: vendor.businessName || `${vendor.user.firstName} ${vendor.user.lastName}`,
+        amount: Number(earning.netAmount),
+        commission: Number(earning.commission),
+        status: earning.status.toLowerCase(),
+        dueDate: earning.createdAt.toISOString().split('T')[0],
+        orders: 1, // Each earning is for one order
+        period: new Date(earning.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }),
+        paymentMethod: 'bank_transfer' // Default
+      };
+    });
+
+    // Group payments by vendor and period for better display
+    const paymentsByVendor = payments.reduce((acc: any, payment) => {
+      const key = `${payment.vendorId}-${payment.period}`;
+      if (!acc[key]) {
+        acc[key] = {
+          ...payment,
+          orders: 0
+        };
+      }
+      acc[key].amount += payment.amount;
+      acc[key].commission += payment.commission;
+      acc[key].orders += payment.orders;
+      return acc;
+    }, {});
+
+    const groupedPayments = Object.values(paymentsByVendor);
+
+    // Get refunds (from orders with REFUNDED status)
+    const refundedOrders = await prisma.order.findMany({
+      where: {
+        status: 'REFUNDED',
+        updatedAt: { gte: startDate }
+      },
+      include: {
+        customer: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true
+          }
+        },
+        vendor: {
+          select: {
+            id: true
+          }
+        }
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 100
+    });
+
+    const refunds = refundedOrders.map((order) => ({
+      id: order.id,
+      orderId: order.orderNumber,
+      customerName: `${order.customer?.firstName || ''} ${order.customer?.lastName || ''}`.trim() || 'Unknown',
+      amount: Number(order.totalAmount),
+      reason: 'Order refunded',
+      status: 'approved',
+      requestedDate: order.updatedAt.toISOString().split('T')[0],
+      processedDate: order.updatedAt.toISOString().split('T')[0],
+      vendorId: order.vendorId
+    }));
+
+    // Get transactions (from payments and vendor earnings)
+    const [paymentTransactions, earningTransactions] = await Promise.all([
+      prisma.payment.findMany({
+        where: {
+          createdAt: { gte: startDate }
+        },
+        include: {
+          order: {
+            include: {
+              vendor: {
+                include: {
+                  user: {
+                    select: {
+                      firstName: true,
+                      lastName: true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      }),
+      prisma.vendorEarning.findMany({
+        where: {
+          createdAt: { gte: startDate }
+        },
+        include: {
+          vendor: {
+            include: {
+              user: {
+                select: {
+                  firstName: true,
+                  lastName: true
+                }
+              }
+            }
+          },
+          order: {
+            select: {
+              orderNumber: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      })
+    ]);
+
+    const transactions = [
+      ...paymentTransactions.map((payment) => ({
+        id: `PAY-${payment.id}`,
+        type: payment.status === 'REFUNDED' ? 'refund' : 'payment',
+        amount: payment.status === 'REFUNDED' ? -Number(payment.amount) : Number(payment.amount),
+        vendor: (payment.order?.vendor as any)?.businessName || 'System',
+        date: payment.createdAt.toISOString().split('T')[0],
+        status: payment.status.toLowerCase(),
+        description: payment.status === 'REFUNDED' 
+          ? `Refund for order ${payment.order?.orderNumber || 'N/A'}`
+          : `Payment for order ${payment.order?.orderNumber || 'N/A'}`
+      })),
+      ...earningTransactions.map((earning) => ({
+        id: `EARN-${earning.id}`,
+        type: 'commission',
+        amount: -Number(earning.commission), // Negative because it's a cost
+        vendor: (earning.vendor as any)?.businessName || 'Unknown',
+        date: earning.createdAt.toISOString().split('T')[0],
+        status: earning.status.toLowerCase(),
+        description: `Commission for order ${earning.order?.orderNumber || 'N/A'}`
+      }))
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    // Get commission rates by category
+    const categories = await prisma.category.findMany({
+      where: {
+        commissionRate: { not: null }
+      },
+      select: {
+        id: true,
+        name: true,
+        commissionRate: true
+      },
+      orderBy: { name: 'asc' }
+    });
+
+    const commissionRates = categories.map((category) => ({
+      category: category.name,
+      rate: Number(category.commissionRate || 15),
+      minOrder: 0 // Not stored in category, using 0 as default
+    }));
+
+    // If no categories with commission rates, add default ones
+    if (commissionRates.length === 0) {
+      commissionRates.push(
+        { category: 'Food & Beverages', rate: 12, minOrder: 10 },
+        { category: 'Fashion & Clothing', rate: 15, minOrder: 25 },
+        { category: 'Beauty & Personal Care', rate: 18, minOrder: 15 },
+        { category: 'Health & Wellness', rate: 20, minOrder: 20 },
+        { category: 'Home & Garden', rate: 14, minOrder: 30 }
+      );
+    }
+
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          totalRevenue,
+          totalCommissions,
+          pendingPayments,
+          refundsIssued,
+          avgOrderValue,
+          commissionRate: Math.round(commissionRate * 10) / 10,
+          growthRate: Math.round(growthRate * 10) / 10,
+          profitMargin: Math.round(profitMargin * 10) / 10
+        },
+        payments: groupedPayments,
+        refunds,
+        transactions: transactions.slice(0, 50), // Limit to 50 most recent
+        commissionRates
+      }
+    });
+  } catch (error: any) {
+    console.error('Get financial data error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch financial data'
+    });
+  }
+});
+
 export default router;
