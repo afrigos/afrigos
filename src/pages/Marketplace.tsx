@@ -418,13 +418,16 @@ export default function Marketplace() {
               className="w-full"
             >
               <CarouselContent className="-ml-2">
-                {[1, 2, 3, 4].map((adNum) => (
-                  <CarouselItem key={adNum} className="pl-2 basis-auto">
+                {['one', 'two', 'three', 'four'].map((adName) => (
+                  <CarouselItem key={adName} className="pl-2 basis-auto">
                     <Link to="/products" className="block w-[280px]">
                       <div className="rounded-lg overflow-hidden relative w-full aspect-[2/3] bg-gradient-to-br from-primary/20 to-primary/5 hover:shadow-lg transition-shadow cursor-pointer">
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <p className="text-sm text-muted-foreground">Portrait Ad {adNum}</p>
-                        </div>
+                        <img
+                          src={`/ads/${adName}.jpg`}
+                          alt={`Portrait Ad ${adName}`}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
                       </div>
                     </Link>
                   </CarouselItem>
@@ -435,16 +438,19 @@ export default function Marketplace() {
 
           {/* Desktop: Grid Layout */}
           <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 justify-items-center">
-            {[1, 2, 3, 4].map((adNum) => (
+            {['one', 'two', 'three', 'four'].map((adName) => (
               <Link 
-                key={adNum} 
+                key={adName} 
                 to="/products" 
                 className="block w-full max-w-[300px] lg:max-w-[400px]"
               >
                 <div className="rounded-lg overflow-hidden relative w-full aspect-[2/3] bg-gradient-to-br from-primary/20 to-primary/5 hover:shadow-lg transition-shadow cursor-pointer">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <p className="text-sm text-muted-foreground">Portrait Ad {adNum}</p>
-                  </div>
+                  <img
+                    src={`/ads/${adName}.jpg`}
+                    alt={`Portrait Ad ${adName}`}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
                 </div>
               </Link>
             ))}
