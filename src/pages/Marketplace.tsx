@@ -92,12 +92,63 @@ export default function Marketplace() {
     queryFn: () => productsApi.getProducts({ limit: 12, sort: 'newest' }),
   });
 
+  // Map category names to image files (matching exact online category names)
+  const getCategoryImage = (categoryName: string): string | null => {
+    const nameLower = categoryName.toLowerCase().trim();
+    
+    // Direct name mappings - using exact category names as they appear online
+    const imageMap: Record<string, string> = {
+      // Exact matches for categories that exist online
+      'handcraft': 'handcraft.jpg',
+      'scent and waxes': 'scentandwaxes.jpg',
+      'furniture': 'furtniture.jpg', // Note: keeping the typo from filename
+      'car/van hire': 'carvanhire.jpg',
+      'car van hire': 'carvanhire.jpg', // Alternative format
+      'delivery': 'delivery.jpg',
+      'short term rent': 'shorttermrent.jpg',
+      'lettings': 'lettings.jpg',
+      // Additional variations for flexibility
+      'handcrafts': 'handcraft.jpg',
+      'hand crafts': 'handcraft.jpg',
+      'scents and waxes': 'scentandwaxes.jpg',
+      'scent & waxes': 'scentandwaxes.jpg',
+      'car van': 'carvanhire.jpg',
+      'car hire': 'carvanhire.jpg',
+      'short term rental': 'shorttermrent.jpg',
+      // Food category (if it exists)
+      'food': 'food.jpg',
+      'food & beverages': 'food.jpg',
+    };
+    
+    // Check direct match first
+    if (imageMap[nameLower]) {
+      return `/categories/${imageMap[nameLower]}`;
+    }
+    
+    // Check if category name contains any key words (fuzzy matching)
+    for (const [key, image] of Object.entries(imageMap)) {
+      if (nameLower.includes(key) || key.includes(nameLower)) {
+        return `/categories/${image}`;
+      }
+    }
+    
+    // For categories without images (Interior Decoration, Event, Herbal), return null
+    // They will show the fallback placeholder
+    return null;
+  };
+
   // Fetch categories
   const { data: categoriesData, isLoading: loadingCategories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const response = await apiFetch<{ success: boolean; data: Array<{ id: string; name: string; description?: string; image?: string; productCount?: number }> }>('/categories?limit=8');
-      return response.data || [];
+      const categories = response.data || [];
+      
+      // Map images to categories
+      return categories.map(category => ({
+        ...category,
+        image: category.image || getCategoryImage(category.name) || undefined
+      }));
     },
   });
 
@@ -204,9 +255,58 @@ export default function Marketplace() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : categoriesData && categoriesData.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
               {categoriesData.map((category) => (
-                <CategoryCard key={category.id} category={category} />
+                <Link 
+                  key={category.id} 
+                  to={`/category/${category.id}`}
+                  className="group block"
+                >
+                  <div className="relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 h-full">
+                    <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
+                      {category.image ? (
+                        <img
+                          src={category.image.startsWith('http') || category.image.startsWith('/') ? category.image : `/categories/${category.image}`}
+                          alt={category.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/placeholder-category.jpg';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
+                          <span className="text-5xl font-bold text-primary/30">
+                            {category.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      {/* Gradient overlay for text readability */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+                      
+                      {/* Category info overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                        <h3 className="font-bold text-lg mb-1 drop-shadow-lg">{category.name}</h3>
+                        {category.productCount !== undefined && category.productCount > 0 && (
+                          <p className="text-sm text-white/90 font-medium">
+                            {category.productCount} {category.productCount === 1 ? 'product' : 'products'}
+                          </p>
+                        )}
+                        {category.description && (
+                          <p className="text-xs text-white/80 mt-1 line-clamp-2 hidden sm:block">
+                            {category.description}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {/* Hover indicator */}
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="bg-white/90 rounded-full p-2 shadow-lg">
+                          <ArrowRight className="h-4 w-4 text-primary" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
               ))}
             </div>
           ) : (
