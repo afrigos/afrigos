@@ -96,28 +96,21 @@ export default function Marketplace() {
   const getCategoryImage = (categoryName: string): string | null => {
     const nameLower = categoryName.toLowerCase().trim();
     
-    // Direct name mappings - using exact category names as they appear online
+    // Direct name mappings - using EXACT category names as they appear online
     const imageMap: Record<string, string> = {
-      // Exact matches for categories that exist online
+      // Exact matches - must match exactly how they appear online (case-insensitive)
+      'food': 'food.jpg',
       'handcraft': 'handcraft.jpg',
       'scent and waxes': 'scentandwaxes.jpg',
       'furniture': 'furtniture.jpg', // Note: keeping the typo from filename
+      'interior decoration': 'furtniture.jpg', // Using furniture image
       'car/van hire': 'carvanhire.jpg',
-      'car van hire': 'carvanhire.jpg', // Alternative format
       'delivery': 'delivery.jpg',
       'short term rent': 'shorttermrent.jpg',
       'lettings': 'lettings.jpg',
-      // Additional variations for flexibility
-      'handcrafts': 'handcraft.jpg',
-      'hand crafts': 'handcraft.jpg',
-      'scents and waxes': 'scentandwaxes.jpg',
-      'scent & waxes': 'scentandwaxes.jpg',
-      'car van': 'carvanhire.jpg',
-      'car hire': 'carvanhire.jpg',
-      'short term rental': 'shorttermrent.jpg',
-      // Food category (if it exists)
-      'food': 'food.jpg',
-      'food & beverages': 'food.jpg',
+      'event': 'events.jpg',
+      'herbal': 'herbal.jpg',
+      'footwear': 'footwear.jpg',
     };
     
     // Check direct match first
@@ -145,10 +138,18 @@ export default function Marketplace() {
       const categories = response.data || [];
       
       // Map images to categories
-      return categories.map(category => ({
-        ...category,
-        image: category.image || getCategoryImage(category.name) || undefined
-      }));
+      return categories.map(category => {
+        const mappedImage = category.image || getCategoryImage(category.name);
+        if (mappedImage) {
+          console.log(`Category "${category.name}" mapped to image: ${mappedImage}`);
+        } else {
+          console.warn(`No image found for category: "${category.name}"`);
+        }
+        return {
+          ...category,
+          image: mappedImage || undefined
+        };
+      });
     },
   });
 
@@ -264,22 +265,67 @@ export default function Marketplace() {
                 >
                   <div className="relative overflow-hidden rounded-xl bg-white shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 h-full">
                     <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200">
-                      {category.image ? (
-                        <img
-                          src={category.image.startsWith('http') || category.image.startsWith('/') ? category.image : `/categories/${category.image}`}
-                          alt={category.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = '/placeholder-category.jpg';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
-                          <span className="text-5xl font-bold text-primary/30">
-                            {category.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
+                      {(() => {
+                        const categoryImage = category.image || getCategoryImage(category.name);
+                        
+                        if (!categoryImage) {
+                          return (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5">
+                              <span className="text-5xl font-bold text-primary/30">
+                                {category.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          );
+                        }
+                        
+                        // Handle both full paths and filenames
+                        // getCategoryImage already returns full path like "/categories/filename.jpg"
+                        // Ensure the path always starts with / for absolute paths (works in production)
+                        let imageSrc = categoryImage;
+                        if (categoryImage.startsWith('http')) {
+                          imageSrc = categoryImage; // External URL
+                        } else if (categoryImage.startsWith('/')) {
+                          imageSrc = categoryImage; // Already absolute path
+                        } else {
+                          imageSrc = `/categories/${categoryImage}`; // Relative path - make absolute
+                        }
+                        
+                        // Remove duplicate /categories/ if somehow present
+                        imageSrc = imageSrc.replace(/\/categories\/categories\//g, '/categories/');
+                        
+                        return (
+                          <img
+                            key={`${category.id}-${imageSrc}`}
+                            src={imageSrc}
+                            alt={category.name}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                            loading="eager"
+                            onError={(e) => {
+                              console.error(`Failed to load category image for "${category.name}": ${imageSrc}`);
+                              console.error(`Category name: "${category.name}", Lowercase: "${category.name.toLowerCase().trim()}"`);
+                              // Hide image on error and show placeholder
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const placeholder = target.parentElement?.querySelector('.category-placeholder') as HTMLElement;
+                              if (placeholder) {
+                                placeholder.style.display = 'flex';
+                              }
+                            }}
+                            onLoad={() => {
+                              console.log(`Successfully loaded image for "${category.name}": ${imageSrc}`);
+                            }}
+                          />
+                        );
+                      })()}
+                      {/* Fallback placeholder - hidden by default, shown on image error */}
+                      <div 
+                        className="category-placeholder w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5 absolute inset-0"
+                        style={{ display: 'none' }}
+                      >
+                        <span className="text-5xl font-bold text-primary/30">
+                          {category.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
                       {/* Gradient overlay for text readability */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                       
