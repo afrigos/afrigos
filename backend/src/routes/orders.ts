@@ -2,6 +2,7 @@ import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import { authenticate } from '../middleware/auth';
+import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail, sendNewOrderEmailToVendor } from '../services/emailService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -465,13 +466,76 @@ router.post('/', [
           }
         },
         vendor: {
-          select: {
-            id: true,
-            businessName: true
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true
+              }
+            }
           }
         }
       }
     });
+
+    // Send new order notification email to vendor
+    // Note: This is sent immediately when order is created (before payment)
+    // Customer confirmation email is sent when payment is completed
+    if (completeOrder && completeOrder.vendor && completeOrder.vendor.user) {
+      try {
+        const shippingAddress = typeof completeOrder.shippingAddress === 'string'
+          ? JSON.parse(completeOrder.shippingAddress)
+          : completeOrder.shippingAddress;
+
+        const orderDate = new Date(completeOrder.createdAt).toLocaleDateString('en-GB', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        const customerName = `${completeOrder.customer.firstName} ${completeOrder.customer.lastName}`;
+
+        await sendNewOrderEmailToVendor({
+          email: completeOrder.vendor.user.email,
+          firstName: completeOrder.vendor.user.firstName,
+          orderNumber: completeOrder.orderNumber,
+          orderDate,
+          customerName,
+          orderItems: completeOrder.orderItems.map(item => ({
+            product: {
+              name: item.product.name,
+              images: Array.isArray(item.product.images) ? item.product.images : []
+            },
+            quantity: item.quantity,
+            price: item.price,
+            total: item.total
+          })),
+          totalAmount: Number(completeOrder.totalAmount),
+          shippingCost: Number(completeOrder.shippingCost || 0),
+          shippingAddress
+        });
+
+        // Also create in-app notification for vendor
+        await prisma.notification.create({
+          data: {
+            userId: completeOrder.vendor.user.id,
+            title: 'New Order Received',
+            message: `You have received a new order ${completeOrder.orderNumber} from ${customerName}. Total: £${Number(completeOrder.totalAmount).toFixed(2)}`,
+            type: 'ORDER_UPDATE' // New order notification for vendor
+          }
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send new order email to vendor:', emailError);
+        // Don't fail order creation if email fails, but log it
+      }
+    }
+
+    // Note: Order confirmation email is sent when payment is completed
+    // This prevents duplicate emails and ensures customer only receives confirmation after successful payment
 
     res.status(201).json({
       success: true,
@@ -522,6 +586,14 @@ router.patch('/:id/status', [
               }
             }
           }
+        },
+        customer: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
         }
       }
     });
@@ -547,6 +619,9 @@ router.patch('/:id/status', [
       });
     }
 
+    // Store previous status for email
+    const previousStatus = order.status;
+
     const updatedOrder = await prisma.order.update({
       where: { id },
       data: {
@@ -560,6 +635,26 @@ router.patch('/:id/status', [
         updatedAt: true
       }
     });
+
+    // Send email notification to customer when order status is updated
+    // Only send if status actually changed and customer exists
+    if (status !== previousStatus && order.customer) {
+      try {
+        await sendOrderStatusUpdateEmail({
+          email: order.customer.email,
+          firstName: order.customer.firstName,
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          status: status,
+          previousStatus: previousStatus,
+          trackingNumber: req.body.trackingNumber, // Optional tracking number
+          estimatedDeliveryDate: req.body.estimatedDeliveryDate // Optional delivery date
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send order status update email:', emailError);
+        // Don't fail status update if email fails, but log it
+      }
+    }
 
     // Create vendor earnings when order is delivered and payment is completed
     if (status === 'DELIVERED' && order.paymentStatus === 'COMPLETED') {

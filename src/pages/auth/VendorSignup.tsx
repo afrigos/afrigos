@@ -71,13 +71,11 @@ export default function VendorSignup() {
     onSuccess: (data) => {
       toast({
         title: "Registration Successful!",
-        description: "Your vendor account has been submitted for approval. You'll receive an email once approved.",
+        description: data.message || "Please check your email for verification code.",
       });
       
-      // Navigate to vendor login with a message
-      navigate("/auth/vendor-login", { 
-        state: { message: "Registration successful! Your account is pending approval." }
-      });
+      // Navigate to email verification page (vendors now need to verify email like customers)
+      navigate(`/auth/verify-email?email=${encodeURIComponent(formData.email)}&role=vendor`);
     },
     onError: (error: Error) => {
       toast({

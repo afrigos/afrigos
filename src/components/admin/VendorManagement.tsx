@@ -19,7 +19,6 @@ import {
 import { 
   Search, 
   Filter, 
-  Eye, 
   CheckCircle, 
   XCircle, 
   Clock,
@@ -43,11 +42,18 @@ import {
   CheckCircle as CheckCircleIcon,
   AlertTriangle,
   Target,
-  Activity
+  Activity,
+  Lock,
+  User,
+  Eye,
+  EyeOff,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Pagination } from "@/components/ui/pagination";
 import { apiFetch } from "@/lib/api-client";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 interface Vendor {
   id: string;
@@ -83,7 +89,7 @@ const fetchVendors = async (params: { page?: number; limit?: number; status?: st
   if (params.status && params.status !== 'all') queryParams.append('status', params.status);
   if (params.search && params.search.trim()) queryParams.append('search', params.search.trim());
 
-  const response = await apiFetch<{ success: boolean; data: Vendor[]; pagination: any }>(`/admin/vendors?${queryParams.toString()}`);
+  const response = await apiFetch<{ success: boolean; data: Vendor[]; pagination: { total: number; pages: number; page: number; limit: number } }>(`/admin/vendors?${queryParams.toString()}`);
   
   if (!response.success || !response.data) {
     throw new Error('Failed to fetch vendors');
@@ -97,13 +103,44 @@ const fetchVendors = async (params: { page?: number; limit?: number; status?: st
 };
 
 const updateVendorStatus = async (vendorId: string, isActive: boolean) => {
-  const response = await apiFetch<{ success: boolean; message: string; data: any }>(`/admin/vendors/${vendorId}/status`, {
+  const response = await apiFetch<{ success: boolean; message: string; data: { id: string; isActive: boolean; isVerified: boolean } }>(`/admin/vendors/${vendorId}/status`, {
     method: 'PUT',
     body: JSON.stringify({ isActive, isVerified: isActive })
   });
 
   if (!response.success) {
     throw new Error(response.message || 'Failed to update vendor status');
+  }
+
+  return response;
+};
+
+const createVendor = async (vendorData: {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  businessName: string;
+  businessType: string;
+  address?: {
+    street: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+}) => {
+  const response = await apiFetch<{ success: boolean; message: string; data: { id: string; email: string; firstName: string; lastName: string } }>('/admin/vendors', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...vendorData,
+      role: 'VENDOR'
+    })
+  });
+
+  if (!response.success) {
+    throw new Error(response.message || 'Failed to create vendor');
   }
 
   return response;
@@ -122,7 +159,32 @@ export function VendorManagement() {
   const [isAddingVendor, setIsAddingVendor] = useState(false);
   const [showStoreModal, setShowStoreModal] = useState(false);
   const [selectedStoreVendor, setSelectedStoreVendor] = useState<Vendor | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [vendorFormData, setVendorFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    phone: '',
+    businessName: '',
+    businessType: 'Sole Proprietorship',
+    street: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'United Kingdom',
+  });
   const { toast } = useToast();
+
+  const BUSINESS_TYPES = [
+    'Sole Proprietorship',
+    'Partnership',
+    'Limited Liability Company',
+    'Corporation',
+    'Non-Profit Organization',
+    'Cooperative',
+    'Individual'
+  ];
 
   // Reset page when filters change
   useEffect(() => {
@@ -156,6 +218,42 @@ export function VendorManagement() {
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update vendor status",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create vendor mutation
+  const createVendorMutation = useMutation({
+    mutationFn: createVendor,
+    onSuccess: (data) => {
+      toast({
+        title: "Vendor Created",
+        description: data.message || "Vendor created successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-vendors'] });
+      refetch();
+      setShowAddModal(false);
+      // Reset form
+      setVendorFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        phone: '',
+        businessName: '',
+        businessType: 'Sole Proprietorship',
+        street: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        country: 'United Kingdom',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Creation Failed",
+        description: error.message || "Failed to create vendor",
         variant: "destructive",
       });
     },
@@ -209,6 +307,63 @@ export function VendorManagement() {
     setShowAddModal(true);
   };
 
+  const handleVendorFormChange = (field: string, value: string) => {
+    setVendorFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCreateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate required fields
+    if (!vendorFormData.firstName || !vendorFormData.lastName || !vendorFormData.email || 
+        !vendorFormData.password || !vendorFormData.businessName || !vendorFormData.businessType) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(vendorFormData.email)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate password length
+    if (vendorFormData.password.length < 6) {
+      toast({
+        title: "Validation Error",
+        description: "Password must be at least 6 characters long",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createVendorMutation.mutate({
+      firstName: vendorFormData.firstName.trim(),
+      lastName: vendorFormData.lastName.trim(),
+      email: vendorFormData.email.trim(),
+      password: vendorFormData.password,
+      phone: vendorFormData.phone.trim() || undefined,
+      businessName: vendorFormData.businessName.trim(),
+      businessType: vendorFormData.businessType,
+      address: (vendorFormData.street || vendorFormData.city || vendorFormData.state || vendorFormData.postalCode) ? {
+        street: vendorFormData.street.trim(),
+        city: vendorFormData.city.trim(),
+        state: vendorFormData.state.trim(),
+        postalCode: vendorFormData.postalCode.trim(),
+        country: vendorFormData.country.trim(),
+      } : undefined,
+    });
+  };
+
   const handleViewVendor = (vendor: Vendor) => {
     setSelectedVendor(vendor);
   };
@@ -232,11 +387,11 @@ export function VendorManagement() {
       } else if (method === "phone" && vendor.phone && vendor.phone !== 'N/A') {
         window.location.href = `tel:${vendor.phone}`;
       } else {
-        toast({
+      toast({
           title: "Contact Information Not Available",
           description: `Vendor ${method} information is not available.`,
           variant: "destructive",
-        });
+      });
       }
     } catch (error) {
       toast({
@@ -469,18 +624,251 @@ export function VendorManagement() {
                 </TableBody>
               </Table>
               {pagination.total > 0 && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={totalPages}
-                  onPageChange={handlePageChange}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
                   totalItems={pagination.total}
-                  itemsPerPage={itemsPerPage}
-                />
+                itemsPerPage={itemsPerPage}
+              />
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add Vendor Modal */}
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Add New Vendor</DialogTitle>
+            <DialogDescription>
+              Create a new vendor account with all required information
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleCreateVendor} className="space-y-6">
+            {/* Personal Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Personal Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name *</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="firstName"
+                      value={vendorFormData.firstName}
+                      onChange={(e) => handleVendorFormChange('firstName', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                        </div>
+                          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name *</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="lastName"
+                      value={vendorFormData.lastName}
+                      onChange={(e) => handleVendorFormChange('lastName', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                          </div>
+                        </div>
+                        </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email Address *</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={vendorFormData.email}
+                      onChange={(e) => handleVendorFormChange('email', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                        </div>
+                          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={vendorFormData.phone}
+                      onChange={(e) => handleVendorFormChange('phone', e.target.value)}
+                      className="pl-10"
+                      placeholder="+44 7304 276064"
+                    />
+                          </div>
+                        </div>
+                        </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={vendorFormData.password}
+                    onChange={(e) => handleVendorFormChange('password', e.target.value)}
+                    className="pl-10 pr-10"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                        </div>
+                <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
+              </div>
+            </div>
+
+            {/* Business Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Business Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="businessName">Business Name *</Label>
+                  <div className="relative">
+                    <Store className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="businessName"
+                      value={vendorFormData.businessName}
+                      onChange={(e) => handleVendorFormChange('businessName', e.target.value)}
+                      className="pl-10"
+                      required
+                    />
+                        </div>
+                          </div>
+                <div className="space-y-2">
+                  <Label htmlFor="businessType">Business Type *</Label>
+                  <Select
+                    value={vendorFormData.businessType}
+                    onValueChange={(value) => handleVendorFormChange('businessType', value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select business type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {BUSINESS_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                          </div>
+                        </div>
+                        </div>
+
+            {/* Address Information */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Address (Optional)</h3>
+              <div className="space-y-2">
+                <Label htmlFor="street">Street Address</Label>
+                <Input
+                  id="street"
+                  value={vendorFormData.street}
+                  onChange={(e) => handleVendorFormChange('street', e.target.value)}
+                  placeholder="123 Main Street"
+                />
+                        </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={vendorFormData.city}
+                    onChange={(e) => handleVendorFormChange('city', e.target.value)}
+                    placeholder="London"
+                  />
+                        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">State/Region</Label>
+                  <Input
+                    id="state"
+                    value={vendorFormData.state}
+                    onChange={(e) => handleVendorFormChange('state', e.target.value)}
+                    placeholder="Greater London"
+                  />
+                          </div>
+                          </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="postalCode">Postal Code</Label>
+                  <Input
+                    id="postalCode"
+                    value={vendorFormData.postalCode}
+                    onChange={(e) => handleVendorFormChange('postalCode', e.target.value)}
+                    placeholder="SW1A 1AA"
+                  />
+                        </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    value={vendorFormData.country}
+                    onChange={(e) => handleVendorFormChange('country', e.target.value)}
+                  />
+                        </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+                          <Button 
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setVendorFormData({
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    password: '',
+                    phone: '',
+                    businessName: '',
+                    businessType: 'Sole Proprietorship',
+                    street: '',
+                    city: '',
+                    state: '',
+                    postalCode: '',
+                    country: 'United Kingdom',
+                  });
+                }}
+                disabled={createVendorMutation.isPending}
+              >
+                Cancel
+                          </Button>
+                          <Button
+                type="submit"
+                disabled={createVendorMutation.isPending}
+              >
+                {createVendorMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  'Create Vendor'
+                )}
+                          </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Vendor Profile Modal */}
       {selectedVendor && (

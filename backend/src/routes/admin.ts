@@ -1,9 +1,17 @@
 import express from 'express';
 import { PrismaClient, $Enums } from '@prisma/client';
 import { requireAdmin } from '../middleware/auth';
+import { body, validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
+import { sendVendorApprovalEmail, sendOrderStatusUpdateEmail, sendOTPEmail } from '../services/emailService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
+
+// Generate 6-digit OTP (same function as in auth.ts)
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 // @desc    Get admin dashboard data
 // @route   GET /api/v1/admin/dashboard
@@ -550,6 +558,116 @@ router.get('/vendors', requireAdmin, async (req, res) => {
   }
 });
 
+// @desc    Create vendor (Admin only)
+// @route   POST /api/v1/admin/vendors
+// @access  Private (Admin)
+router.post('/vendors', requireAdmin, [
+  body('firstName').trim().notEmpty().withMessage('First name is required'),
+  body('lastName').trim().notEmpty().withMessage('Last name is required'),
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('businessName').trim().notEmpty().withMessage('Business name is required'),
+  body('businessType').trim().notEmpty().withMessage('Business type is required'),
+  body('phone').optional().trim(),
+], async (req: any, res: any) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { firstName, lastName, email, password, phone, businessName, businessType, address } = req.body;
+
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    // Hash password
+    const saltRounds = parseInt(process.env.BCRYPT_ROUNDS || '12');
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+    // Create user and vendor profile in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          role: 'VENDOR',
+          phone: phone?.trim() || null,
+          isActive: true, // Admin-created vendors are active immediately
+          isVerified: true // Admin-created vendors are verified immediately
+        }
+      });
+
+      // Create vendor profile
+      const vendorProfile = await tx.vendorProfile.create({
+        data: {
+          userId: user.id,
+          businessName: businessName.trim(),
+          businessType: businessType.trim(),
+          verificationStatus: 'VERIFIED', // Admin-created vendors are verified
+          description: 'Vendor account created by admin'
+        }
+      });
+
+      // Create address if provided
+      if (address && (address.street || address.city || address.state || address.postalCode)) {
+        await tx.address.create({
+          data: {
+            userId: user.id,
+            street: address.street?.trim() || '',
+            city: address.city?.trim() || '',
+            state: address.state?.trim() || '',
+            postalCode: address.postalCode?.trim() || '',
+            country: address.country?.trim() || 'United Kingdom',
+            type: $Enums.AddressType.SHIPPING, // Use SHIPPING as default for business addresses
+            isDefault: true
+          }
+        });
+      }
+
+      // Return user without password
+      const { password: _, ...userWithoutPassword } = user;
+
+      return {
+        ...userWithoutPassword,
+        vendorProfile: {
+          id: vendorProfile.id,
+          businessName: vendorProfile.businessName,
+          businessType: vendorProfile.businessType
+        }
+      };
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Vendor created successfully',
+      data: result
+    });
+  } catch (error: any) {
+    console.error('Error creating vendor:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create vendor'
+    });
+  }
+});
+
 // @desc    Update vendor status
 // @route   PUT /api/v1/admin/vendors/:id/status
 // @access  Private (Admin)
@@ -609,6 +727,60 @@ router.put('/vendors/:id/status', requireAdmin, async (req, res) => {
           verificationStatus: verificationStatus
         }
       });
+    }
+
+    // Send approval/rejection email if vendor status changed to approved or rejected
+    const wasPending = vendor.vendorProfile?.verificationStatus === 'PENDING' || !vendor.vendorProfile?.verificationStatus;
+    const isNowApproved = isActive && isVerified && verificationStatus === 'VERIFIED';
+    const isNowRejected = !isActive && !isVerified && verificationStatus !== 'VERIFIED';
+
+    if (wasPending && (isNowApproved || isNowRejected)) {
+      try {
+        // If approved and email is not verified, send OTP for email verification
+        let requiresEmailVerification = false;
+        if (isNowApproved && !updatedVendor.isVerified) {
+          requiresEmailVerification = true;
+          
+          // Generate OTP
+          const otp = generateOTP();
+          const expiryDate = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+          // Store OTP in user record
+          await prisma.user.update({
+            where: { id: vendor.id },
+            data: {
+              emailVerificationCode: otp,
+              emailVerificationCodeExpiry: expiryDate
+            } as any
+          });
+
+          // Send OTP email
+          try {
+            await sendOTPEmail({
+              email: vendor.email,
+              firstName: vendor.firstName,
+              otp: otp,
+              expiryMinutes: 10
+            });
+          } catch (otpError: any) {
+            console.error('Failed to send OTP email to vendor:', otpError);
+            // Continue with approval email even if OTP fails
+          }
+        }
+
+        // Send approval/rejection email
+        await sendVendorApprovalEmail({
+          email: vendor.email,
+          firstName: vendor.firstName,
+          businessName: vendor.vendorProfile?.businessName || 'Your Business',
+          approved: isNowApproved,
+          reason: isNowRejected ? req.body.reason || 'Application could not be approved at this time.' : undefined,
+          requiresEmailVerification: requiresEmailVerification
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send vendor approval email:', emailError);
+        // Don't fail status update if email fails, but log it
+      }
     }
 
     return res.json({
@@ -2099,6 +2271,14 @@ router.patch('/orders/:id/status', requireAdmin, async (req: any, res: any) => {
               }
             }
           }
+        },
+        customer: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true
+          }
         }
       }
     });
@@ -2109,6 +2289,9 @@ router.patch('/orders/:id/status', requireAdmin, async (req: any, res: any) => {
         message: 'Order not found'
       });
     }
+
+    // Store previous status for email
+    const previousStatus = order.status;
 
     // Prepare update data
     const updateData: any = { status };
@@ -2142,6 +2325,26 @@ router.patch('/orders/:id/status', requireAdmin, async (req: any, res: any) => {
         }
       }
     });
+
+    // Send email notification to customer when admin updates order status
+    // Only send if status actually changed and customer exists
+    if (status !== previousStatus && updatedOrder.customer) {
+      try {
+        await sendOrderStatusUpdateEmail({
+          email: updatedOrder.customer.email,
+          firstName: updatedOrder.customer.firstName,
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          status: status,
+          previousStatus: previousStatus,
+          trackingNumber: trackingNumber || undefined,
+          estimatedDeliveryDate: req.body.estimatedDeliveryDate || undefined
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send order status update email:', emailError);
+        // Don't fail status update if email fails, but log it
+      }
+    }
 
     // Create vendor earnings when order is delivered and payment is completed
     if (status === 'DELIVERED' && order.paymentStatus === 'COMPLETED') {
@@ -2434,6 +2637,23 @@ router.post('/orders/:id/refund', requireAdmin, async (req: any, res: any) => {
           type: 'PAYMENT_RECEIVED'
         }
       });
+
+      // Send email notification to customer about refund
+      try {
+        await sendOrderStatusUpdateEmail({
+          email: order.customer.email,
+          firstName: order.customer.firstName,
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          status: 'REFUNDED',
+          previousStatus: order.status,
+          trackingNumber: undefined,
+          estimatedDeliveryDate: undefined
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send refund email:', emailError);
+        // Don't fail refund if email fails, but log it
+      }
     }
 
     res.json({

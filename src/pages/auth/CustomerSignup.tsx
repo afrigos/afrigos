@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +53,8 @@ const customerSignupApi = async (data: SignupData): Promise<AuthResponse> => {
 };
 
 export default function CustomerSignup() {
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '';
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -70,31 +72,16 @@ export default function CustomerSignup() {
   const signupMutation = useMutation({
     mutationFn: customerSignupApi,
     onSuccess: (data) => {
-      if (data.data.token) {
-        localStorage.setItem('afrigos-token', data.data.token);
-        localStorage.setItem('afrigos-user', JSON.stringify(data.data.user));
-        
-        // Transform user data to match AuthContext interface
-        const transformedUser = {
-          id: data.data.user.id,
-          email: data.data.user.email,
-          name: `${data.data.user.firstName} ${data.data.user.lastName}`,
-          role: 'customer' as const,
-          avatar: null,
-          isActive: data.data.user.isActive,
-          isVerified: data.data.user.isVerified
-        };
-        
-        // Update AuthContext with the logged-in user
-        setUser(transformedUser);
-      }
+      // Customer signup now requires email verification - no token returned
+      // Redirect to verification page with email and redirect path
+      const verificationUrl = `/auth/verify-email?email=${encodeURIComponent(formData.email)}${redirectPath ? `&redirect=${encodeURIComponent(redirectPath)}` : ''}`;
       
       toast({
-        title: "Welcome to AfriGos!",
-        description: "Your account has been created successfully.",
+        title: "Account Created!",
+        description: "Please check your email for the verification code.",
       });
       
-      navigate("/account");
+      navigate(verificationUrl);
     },
     onError: (error: Error) => {
       toast({
@@ -265,7 +252,7 @@ export default function CustomerSignup() {
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
                 Already have an account?{" "}
-                <Link to="/auth/customer-login" className="text-primary hover:underline font-medium">
+                <Link to={`/auth/customer-login${redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : ''}`} className="text-primary hover:underline font-medium">
                   Sign In
                 </Link>
               </p>

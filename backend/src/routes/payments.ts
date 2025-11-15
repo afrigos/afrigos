@@ -3,6 +3,7 @@ import { PrismaClient, PaymentGateway } from '@prisma/client';
 import { body, validationResult } from 'express-validator';
 import Stripe from 'stripe';
 import { authenticate } from '../middleware/auth';
+import { sendOrderConfirmationEmail } from '../services/emailService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -357,16 +358,8 @@ router.post('/create-intent', [
         });
       }
 
-      // Update order status to COMPLETED
-      await prisma.order.update({
-        where: { id: order.id },
-        data: {
-          paymentStatus: 'COMPLETED',
-          status: 'CONFIRMED'
-        }
-      });
-
       // Create mock payment intent object for handlePaymentSuccess
+      // Note: Don't update order status here - let handlePaymentSuccess do it to ensure email is sent correctly
       const mockPaymentIntent = {
         id: payment.transactionId,
         status: 'succeeded',
@@ -377,7 +370,7 @@ router.post('/create-intent', [
         }
       } as any;
 
-      // Call handlePaymentSuccess to ensure all records are updated
+      // Call handlePaymentSuccess to ensure all records are updated and email is sent
       await handlePaymentSuccess(mockPaymentIntent);
 
       console.log('✅ MOCK PAYMENT: Payment automatically processed and marked as successful');
@@ -466,7 +459,32 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
       transactionId: paymentIntent.id
     },
     include: {
-      order: true
+      order: {
+        include: {
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true
+            }
+          },
+          orderItems: {
+            include: {
+              product: {
+                select: {
+                  name: true,
+                  images: true
+                }
+              }
+            }
+          },
+          vendor: {
+            select: {
+              businessName: true
+            }
+          }
+        }
+      }
     }
   });
 
@@ -474,6 +492,10 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
     console.error(`Payment not found for transaction ${paymentIntent.id}`);
     return;
   }
+
+  // Check if order was already confirmed (to avoid duplicate emails)
+  const wasAlreadyConfirmed = payment.order.status === 'CONFIRMED' && payment.order.paymentStatus === 'COMPLETED';
+  const shouldSendEmail = !wasAlreadyConfirmed && payment.order.customer;
 
   // Update payment status
   await prisma.payment.update({
@@ -485,13 +507,78 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
   });
 
   // Update order status
-  await prisma.order.update({
+  const updatedOrder = await prisma.order.update({
     where: { id: payment.orderId },
     data: {
       paymentStatus: 'COMPLETED',
       status: 'CONFIRMED'
+    },
+    include: {
+      customer: {
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true
+        }
+      },
+      orderItems: {
+        include: {
+          product: {
+            select: {
+              name: true,
+              images: true
+            }
+          }
+        }
+      },
+      vendor: {
+        select: {
+          businessName: true
+        }
+      }
     }
   });
+
+  // Send order confirmation email when payment completes
+  if (shouldSendEmail && updatedOrder && updatedOrder.customer) {
+    try {
+      const shippingAddress = typeof updatedOrder.shippingAddress === 'string'
+        ? JSON.parse(updatedOrder.shippingAddress)
+        : updatedOrder.shippingAddress;
+
+      const orderDate = new Date(updatedOrder.createdAt).toLocaleDateString('en-GB', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      await sendOrderConfirmationEmail({
+        email: updatedOrder.customer.email,
+        firstName: updatedOrder.customer.firstName,
+        orderNumber: updatedOrder.orderNumber,
+        orderDate,
+        orderItems: updatedOrder.orderItems.map(item => ({
+          product: {
+            name: item.product.name,
+            images: Array.isArray(item.product.images) ? item.product.images : []
+          },
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total
+        })),
+        subtotal: Number(updatedOrder.totalAmount) - Number(updatedOrder.shippingCost || 0),
+        shippingCost: Number(updatedOrder.shippingCost || 0),
+        totalAmount: Number(updatedOrder.totalAmount),
+        shippingAddress,
+        vendorName: updatedOrder.vendor?.businessName
+      });
+    } catch (emailError: any) {
+      console.error('Failed to send order confirmation email:', emailError);
+      // Don't fail payment processing if email fails, but log it
+    }
+  }
 
   console.log(`Payment succeeded for order ${orderId}`);
 }

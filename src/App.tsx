@@ -11,6 +11,7 @@ import VendorLogin from "./pages/auth/VendorLogin";
 import VendorSignup from "./pages/auth/VendorSignup";
 import CustomerLogin from "./pages/auth/CustomerLogin";
 import CustomerSignup from "./pages/auth/CustomerSignup";
+import EmailVerification from "./pages/auth/EmailVerification";
 import PendingApproval from "./pages/auth/PendingApproval";
 import OrderTracking from "./pages/OrderTracking";
 import Signup from "./pages/auth/Signup";
@@ -105,6 +106,7 @@ const App = () => (
               <Route path="/auth/vendor-signup" element={<VendorSignup />} />
               <Route path="/auth/customer-login" element={<CustomerLogin />} />
               <Route path="/auth/customer-signup" element={<CustomerSignup />} />
+              <Route path="/auth/verify-email" element={<EmailVerification />} />
               <Route path="/auth/pending-approval" element={<PendingApproval />} />
               <Route path="/auth/signup" element={<Signup />} />
               <Route path="/auth/forgot-password" element={<ForgotPassword />} />

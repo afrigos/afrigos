@@ -111,6 +111,9 @@ const VendorLogin = () => {
       const response = await apiFetch<{
         success: boolean;
         message?: string;
+        requiresVerification?: boolean;
+        email?: string;
+        role?: string;
         data?: VendorLoginResponse;
       }>("/auth/login", {
         method: "POST",
@@ -119,6 +122,12 @@ const VendorLogin = () => {
           password: signInForm.password,
         }),
       });
+
+      // Check if email verification is required
+      if (response.requiresVerification && response.email) {
+        navigate(`/auth/verify-email?email=${encodeURIComponent(response.email)}&role=vendor`, { replace: true });
+        return;
+      }
 
       if (!response.success || !response.data?.token || !response.data?.user) {
         throw new Error(response.message || "Invalid vendor credentials.");
@@ -198,17 +207,8 @@ const VendorLogin = () => {
         throw new Error(response.message || "We couldn't create your vendor account.");
       }
 
-      setBanner(
-        "success",
-        "Vendor account created",
-        "Your vendor profile has been submitted. Sign in to track approval progress."
-      );
-      setActiveTab("signin");
-      setSignInForm({
-        email: signUpForm.email,
-        password: "",
-        showPassword: false,
-      });
+      // Navigate to email verification page (vendors now need to verify email like customers)
+      navigate(`/auth/verify-email?email=${encodeURIComponent(signUpForm.email)}&role=vendor`);
     } catch (error) {
       const message =
         error instanceof Error

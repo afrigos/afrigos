@@ -55,6 +55,7 @@ export default function Checkout() {
 
   useEffect(() => {
     // Redirect to customer login if not authenticated
+    // User can signup or login, both will redirect back to checkout after verification
     if (!isAuthenticated) {
       navigate('/auth/customer-login?redirect=/checkout');
       return;

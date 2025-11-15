@@ -317,7 +317,7 @@ export function VendorWithdrawals() {
                             </span>
                             {withdrawal.mockMode && (
                               <Badge variant="outline" className="text-xs">
-                                MOCK
+                                M
                               </Badge>
                             )}
                           </div>

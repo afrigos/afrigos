@@ -32,13 +32,14 @@ import {
   MapPin, 
   Phone, 
   Store,
-  Upload,
+  Upload, 
   CreditCard,
   Building2,
   ExternalLink,
   CheckCircle,
   XCircle,
   AlertCircle,
+  User,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Pagination } from "@/components/ui/pagination";
@@ -190,6 +191,8 @@ type BusinessFormState = {
   employees: string;
   revenue: string;
   phone: string;
+  firstName: string;
+  lastName: string;
   bankAccountNumber: string;
   bankRoutingNumber: string;
   bankAccountHolderName: string;
@@ -207,6 +210,8 @@ const initialBusinessForm: BusinessFormState = {
   employees: "",
   revenue: "",
   phone: "",
+  firstName: "",
+  lastName: "",
   bankAccountNumber: "",
   bankRoutingNumber: "",
   bankAccountHolderName: "",
@@ -253,6 +258,8 @@ export function VendorProfile() {
         employees: profile.employees ?? "",
         revenue: profile.revenue ?? "",
         phone: profile.user.phone ?? "",
+        firstName: profile.user.firstName ?? "",
+        lastName: profile.user.lastName ?? "",
         bankAccountNumber: profile.bankAccountNumber ?? "",
         bankRoutingNumber: profile.bankRoutingNumber ?? "",
         bankAccountHolderName: profile.bankAccountHolderName ?? "",
@@ -268,7 +275,7 @@ export function VendorProfile() {
     const refresh = urlParams.get('refresh');
     
     if (success === 'true') {
-      toast({
+    toast({
         title: "Stripe onboarding completed",
         description: "Your Stripe account has been set up. Please wait while we verify your account.",
       });
@@ -302,6 +309,8 @@ export function VendorProfile() {
             employees: normalize(payload.employees),
             revenue: normalize(payload.revenue),
             phone: normalize(payload.phone),
+            firstName: payload.firstName.trim() || null,
+            lastName: payload.lastName.trim() || null,
             // stripeAccountId and stripeAccountStatus are managed by Stripe, not sent in updates
             bankAccountNumber: normalize(payload.bankAccountNumber),
             bankRoutingNumber: normalize(payload.bankRoutingNumber),
@@ -463,22 +472,22 @@ export function VendorProfile() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Skeleton className="h-64 w-full rounded-xl" />
           <Skeleton className="h-64 w-full rounded-xl" />
-                  </div>
+                    </div>
                   </div>
     );
   }
 
   if (error) {
     return (
-      <Card>
-              <CardHeader>
+          <Card>
+            <CardHeader>
           <CardTitle>Unable to load profile</CardTitle>
           <CardDescription>{error instanceof Error ? error.message : "Please try again later."}</CardDescription>
-              </CardHeader>
-              <CardContent>
+            </CardHeader>
+            <CardContent>
           <Button onClick={() => refetch()}>Retry</Button>
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
     );
   }
 
@@ -500,7 +509,7 @@ export function VendorProfile() {
     <div className="space-y-6">
       <Card className="border border-border shadow-sm">
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-muted/40 rounded-t-xl">
-                      <div>
+                <div>
             <CardTitle className="flex items-center gap-3 text-2xl">
               <Store className="h-6 w-6 text-primary" />
               {displayName}
@@ -514,7 +523,7 @@ export function VendorProfile() {
                 </>
               ) : null}
             </CardDescription>
-                      </div>
+                </div>
           <div className="flex items-center gap-2">
             <Badge className={cn("capitalize", statusStyles[verificationStatus] ?? statusStyles.PENDING)}>
               {verificationStatus.toLowerCase()}
@@ -562,7 +571,7 @@ export function VendorProfile() {
                 )}
               </Button>
             )}
-                    </div>
+                </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-4 pt-4">
           {stats.map((item) => (
@@ -724,6 +733,42 @@ export function VendorProfile() {
             <CardDescription>How customers and AfriGos can reach you.</CardDescription>
             </CardHeader>
           <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">First Name</label>
+                {isEditing ? (
+                  <Input
+                    value={businessForm.firstName}
+                    onChange={(event) =>
+                      setBusinessForm((prev) => ({ ...prev, firstName: event.target.value }))
+                    }
+                    placeholder="First name"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>{profile.user.firstName || "Not provided"}</span>
+                </div>
+                )}
+                </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Last Name</label>
+                {isEditing ? (
+                  <Input
+                    value={businessForm.lastName}
+                    onChange={(event) =>
+                      setBusinessForm((prev) => ({ ...prev, lastName: event.target.value }))
+                    }
+                    placeholder="Last name"
+                  />
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span>{profile.user.lastName || "Not provided"}</span>
+                </div>
+                )}
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <span>{profile.user.email}</span>
@@ -781,10 +826,10 @@ export function VendorProfile() {
           </Card>
       </div>
 
-      <Card>
-        <CardHeader>
+            <Card>
+              <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
+                <div>
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-primary" />
                 Stripe Payment Credentials
@@ -792,7 +837,7 @@ export function VendorProfile() {
               <CardDescription>
                 Add your banking details to receive payouts via Stripe Connect. This information is encrypted and secure.
               </CardDescription>
-            </div>
+                </div>
             {!isEditing && profile?.stripeAccountStatus && (
               <Badge
                 className={
@@ -821,7 +866,7 @@ export function VendorProfile() {
                 )}
               </Badge>
             )}
-          </div>
+                </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {profile?.stripeAccountId && (
@@ -863,8 +908,8 @@ export function VendorProfile() {
                     )}
                   </Button>
                 )}
-              </div>
-            </div>
+                </div>
+                  </div>
           )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
@@ -877,8 +922,8 @@ export function VendorProfile() {
                 disabled={!isEditing || paymentDetailsEditLimitReached}
                 placeholder="John Doe"
                 className="mt-1"
-              />
-            </div>
+                  />
+                </div>
             <div>
               <label className="text-sm font-medium">Bank Name</label>
               <Input
@@ -889,8 +934,8 @@ export function VendorProfile() {
                 disabled={!isEditing || paymentDetailsEditLimitReached}
                 placeholder="e.g. Barclays Bank"
                 className="mt-1"
-              />
-            </div>
+                  />
+                </div>
             <div>
               <label className="text-sm font-medium">Bank Account Number</label>
               {isEditing ? (
@@ -911,7 +956,7 @@ export function VendorProfile() {
                     : "Not provided"}
                 </div>
               )}
-            </div>
+                  </div>
             <div>
               <label className="text-sm font-medium">Routing Number / Sort Code</label>
               <Input
@@ -927,8 +972,8 @@ export function VendorProfile() {
               <p className="text-xs text-muted-foreground mt-1">
                 UK: Sort code (e.g., 12-34-56) | US: Routing number (9 digits)
               </p>
-            </div>
-          </div>
+                </div>
+                  </div>
           {!isEditing && (
             <div className="rounded-md bg-blue-50 border border-blue-200 p-4 text-sm text-blue-800">
               <p className="font-semibold mb-2">Stripe Connect Integration</p>
@@ -1024,8 +1069,8 @@ export function VendorProfile() {
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -1058,14 +1103,14 @@ export function VendorProfile() {
                         )}
                       >
                         {existing.status.toLowerCase()}
-                      </Badge>
+                    </Badge>
                       <Button variant="ghost" size="sm" asChild>
                         <a href={existing.url} target="_blank" rel="noopener noreferrer">
                           <Download className="mr-2 h-4 w-4" />
                           View document
                         </a>
-                      </Button>
-                </div>
+                    </Button>
+                  </div>
                   ) : null}
                 </div>
                 <div className="flex items-center gap-2">
@@ -1124,19 +1169,19 @@ export function VendorProfile() {
               <p className="mt-2 text-lg font-semibold text-foreground">
                 {formatCurrency(profile.financialSummary.totalGross)}
               </p>
-                  </div>
+                        </div>
             <div className="rounded-lg border p-4">
               <p className="text-xs uppercase text-muted-foreground">Commission paid</p>
               <p className="mt-2 text-lg font-semibold text-foreground">
                 {formatCurrency(profile.financialSummary.totalCommission)}
               </p>
-                  </div>
+                        </div>
             <div className="rounded-lg border p-4">
               <p className="text-xs uppercase text-muted-foreground">Net earnings</p>
               <p className="mt-2 text-lg font-semibold text-foreground">
                 {formatCurrency(profile.financialSummary.totalNet)}
               </p>
-                </div>
+                      </div>
             <div className="rounded-lg border p-4">
               <p className="text-xs uppercase text-muted-foreground">Pending order value</p>
               <p className="mt-2 text-lg font-semibold text-foreground">

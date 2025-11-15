@@ -189,7 +189,10 @@ router.post('/profile', requireVendor, [
   body('bankRoutingNumber').optional({ nullable: true, checkFalsy: true }),
   body('bankAccountHolderName').optional({ nullable: true, checkFalsy: true }),
   body('bankName').optional({ nullable: true, checkFalsy: true }),
-  body('stripeAccountStatus').optional({ nullable: true, checkFalsy: true })
+  body('stripeAccountStatus').optional({ nullable: true, checkFalsy: true }),
+  body('firstName').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('lastName').optional({ nullable: true, checkFalsy: true }).trim(),
+  body('phone').optional({ nullable: true, checkFalsy: true }).trim()
 ], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
@@ -214,6 +217,8 @@ router.post('/profile', requireVendor, [
       socialMedia,
       categoryId,
       phone,
+      firstName,
+      lastName,
       stripeAccountId,
       bankAccountNumber,
       bankRoutingNumber,
@@ -430,13 +435,21 @@ router.post('/profile', requireVendor, [
         data: updateData
       });
 
-      // Update user phone if provided
+      // Update user phone, firstName, and lastName if provided
+      const userUpdateData: any = {};
       if (phone !== undefined) {
+        userUpdateData.phone = phone || null;
+      }
+      if (firstName !== undefined) {
+        userUpdateData.firstName = firstName || null;
+      }
+      if (lastName !== undefined) {
+        userUpdateData.lastName = lastName || null;
+      }
+      if (Object.keys(userUpdateData).length > 0) {
         await prisma.user.update({
           where: { id: req.user.id },
-          data: {
-            phone: phone || null
-          }
+          data: userUpdateData
         });
       }
 
@@ -522,13 +535,21 @@ router.post('/profile', requireVendor, [
         });
       }
 
-      // Update user phone if provided
+      // Update user phone, firstName, and lastName if provided
+      const userUpdateData: any = {};
       if (phone !== undefined) {
+        userUpdateData.phone = phone || null;
+      }
+      if (firstName !== undefined) {
+        userUpdateData.firstName = firstName || null;
+      }
+      if (lastName !== undefined) {
+        userUpdateData.lastName = lastName || null;
+      }
+      if (Object.keys(userUpdateData).length > 0) {
         await prisma.user.update({
           where: { id: req.user.id },
-          data: {
-            phone: phone || null
-          }
+          data: userUpdateData
         });
       }
 

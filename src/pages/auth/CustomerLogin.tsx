@@ -36,6 +36,13 @@ interface AuthResponse {
   };
 }
 
+interface LoginErrorResponse {
+  success: boolean;
+  message: string;
+  requiresVerification?: boolean;
+  email?: string;
+}
+
 const customerLoginApi = async (data: LoginData): Promise<AuthResponse> => {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
@@ -46,7 +53,17 @@ const customerLoginApi = async (data: LoginData): Promise<AuthResponse> => {
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error: LoginErrorResponse = await response.json();
+    
+    // Check if email verification is required
+    if (error.requiresVerification && error.email) {
+      throw { 
+        message: error.message || 'Email verification required',
+        requiresVerification: true,
+        email: error.email
+      };
+    }
+    
     throw new Error(error.message || 'Login failed');
   }
 
@@ -115,7 +132,22 @@ export default function CustomerLogin() {
       const redirectTo = searchParams.get('redirect');
       navigate(redirectTo || '/account');
     },
-    onError: (error: Error) => {
+    onError: (error: any) => {
+      // Handle email verification required
+      if (error.requiresVerification && error.email) {
+        const redirectTo = searchParams.get('redirect') || '';
+        const verificationUrl = `/auth/verify-email?email=${encodeURIComponent(error.email)}${redirectTo ? `&redirect=${encodeURIComponent(redirectTo)}` : ''}`;
+        
+        toast({
+          title: "Email Verification Required",
+          description: "Please verify your email address before logging in.",
+          variant: "destructive",
+        });
+        
+        navigate(verificationUrl);
+        return;
+      }
+      
       toast({
         title: "Login Failed",
         description: error.message || "Invalid email or password. Please try again.",

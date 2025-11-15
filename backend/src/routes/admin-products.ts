@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { PrismaClient, NotificationType, Prisma } from '@prisma/client';
 import { authenticate, requireAdmin } from '../middleware/auth';
 import { body, validationResult } from 'express-validator';
+import { sendProductApprovalEmail } from '../services/emailService';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -340,6 +341,23 @@ router.put('/:id/status', authenticate, requireAdmin, [
         isRead: false
       }
     });
+
+    // Send email notification to vendor
+    if (product.vendor.user) {
+      try {
+        await sendProductApprovalEmail({
+          email: product.vendor.user.email,
+          firstName: product.vendor.user.firstName,
+          productName: product.name,
+          status: status as 'APPROVED' | 'REJECTED' | 'DRAFT',
+          reason: reason || undefined,
+          productId: product.id
+        });
+      } catch (emailError: any) {
+        console.error('Failed to send product approval email:', emailError);
+        // Don't fail status update if email fails, but log it
+      }
+    }
 
     res.json({
       success: true,
