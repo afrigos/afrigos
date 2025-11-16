@@ -2,6 +2,10 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Base URL for assets (used for email logo)
+const APP_BASE_URL = (process.env.FRONTEND_URL || 'http://localhost:8083').replace(/\/+$/, '');
+const LOGO_URL = `${APP_BASE_URL}/afrigos.jpg`;
+
 interface SendOTPEmailParams {
   email: string;
   firstName: string;
@@ -29,8 +33,9 @@ export async function sendOTPEmail({
             <title>Verify Your Email</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               <h2 style="color: #333; margin-top: 0;">Verify Your Email Address</h2>
@@ -179,8 +184,9 @@ export async function sendOrderConfirmationEmail({
             <title>Order Confirmation</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               <h2 style="color: #333; margin-top: 0;">Order Confirmation</h2>
@@ -315,8 +321,9 @@ export async function sendVendorWelcomeEmail({
             <title>Welcome to AfriGos</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               <h2 style="color: #333; margin-top: 0;">Welcome to AfriGos!</h2>
@@ -422,8 +429,9 @@ export async function sendVendorApprovalEmail({
             <title>${approved ? 'Vendor Approved' : 'Vendor Application Update'}</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               ${approved ? `
@@ -577,8 +585,9 @@ export async function sendProductApprovalEmail({
             <title>${isApproved ? 'Product Approved' : 'Product Update'}</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               ${isApproved ? `
@@ -788,8 +797,9 @@ export async function sendOrderStatusUpdateEmail({
             <title>Order Status Update</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               <h2 style="color: #333; margin-top: 0;">${statusInfo.title}</h2>
@@ -972,8 +982,9 @@ export async function sendNewOrderEmailToVendor({
             <title>New Order Received</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
-            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">AfriGos</h1>
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
             </div>
             <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
               <h2 style="color: #333; margin-top: 0;">🎉 New Order Received!</h2>

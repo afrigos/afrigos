@@ -539,6 +539,26 @@ async function handlePaymentSuccess(paymentIntent: Stripe.PaymentIntent) {
     }
   });
 
+  // Adjust inventory when payment is confirmed
+  // Only decrement stock if the order wasn't already confirmed+completed
+  try {
+    if (!wasAlreadyConfirmed) {
+      for (const item of updatedOrder.orderItems) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: {
+              decrement: item.quantity
+            }
+          }
+        });
+      }
+    }
+  } catch (invError) {
+    console.error('Inventory adjustment error after payment success for order:', updatedOrder.id, invError);
+    // Do not fail email sending or payment handling because of inventory issues
+  }
+
   // Send order confirmation email when payment completes
   if (shouldSendEmail && updatedOrder && updatedOrder.customer) {
     try {

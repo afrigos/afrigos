@@ -12,6 +12,8 @@ import {
   Menu,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 import { API_BASE_URL } from '@/lib/api-config';
 
@@ -50,7 +52,9 @@ type VendorHeaderProps = {
 
 export function VendorHeader({ onOpenSidebar }: VendorHeaderProps) {
   const { user } = useAuth();
-  const [notifications] = useState(3); // Mock notification count
+  const [notifications] = useState(0); // Placeholder count until Notification Center is implemented
+  const { toast } = useToast();
+  const navigate = useNavigate();
 
   // Fetch vendor dashboard data
   const { data: dashboardData, isLoading } = useQuery({
@@ -108,7 +112,17 @@ export function VendorHeader({ onOpenSidebar }: VendorHeaderProps) {
         </div>
 
         {/* Notifications */}
-        <Button variant="ghost" size="sm" className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="relative"
+          onClick={() =>
+            toast({
+              title: "No notifications",
+              description: "You don't have any notifications yet.",
+            })
+          }
+        >
           <Bell className="h-5 w-5" />
           {notifications > 0 && (
             <Badge 
@@ -121,7 +135,7 @@ export function VendorHeader({ onOpenSidebar }: VendorHeaderProps) {
         </Button>
 
         {/* Settings */}
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/vendor/profile')}>
           <Settings className="h-5 w-5" />
         </Button>
 

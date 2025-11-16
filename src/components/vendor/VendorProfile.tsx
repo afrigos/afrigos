@@ -190,7 +190,7 @@ type BusinessFormState = {
   foundedYear: string;
   employees: string;
   revenue: string;
-  phone: string;
+    phone: string;
   firstName: string;
   lastName: string;
   bankAccountNumber: string;
@@ -332,7 +332,7 @@ export function VendorProfile() {
       setIsEditing(false);
       refetch();
     },
-    onError: (mutationError: any) => {
+    onError: (mutationError: unknown) => {
       // Check if error is due to edit limit
       const errorMessage = mutationError instanceof Error ? mutationError.message : "Unable to update profile right now.";
       const isEditLimitError = errorMessage.includes("maximum limit") || errorMessage.includes("5 edits");
@@ -376,7 +376,7 @@ export function VendorProfile() {
         description: "Your document has been submitted and is pending review.",
       });
       refetch();
-    } catch (uploadError: any) {
+    } catch (uploadError: unknown) {
       toast({
         title: "Upload failed",
         description: uploadError instanceof Error ? uploadError.message : "Unable to upload document.",
@@ -404,7 +404,7 @@ export function VendorProfile() {
 
       // Redirect to Stripe onboarding
       window.location.href = response.data.onboardingUrl;
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Onboarding failed",
         description: error instanceof Error ? error.message : "Unable to start Stripe onboarding.",
@@ -772,7 +772,7 @@ export function VendorProfile() {
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4 text-muted-foreground" />
               <span>{profile.user.email}</span>
-                </div>
+            </div>
             <div className="flex items-center gap-2">
               <Phone className="h-4 w-4 text-muted-foreground" />
               {isEditing ? (

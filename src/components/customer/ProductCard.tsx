@@ -114,6 +114,25 @@ export function ProductCard({ product, onView }: ProductCardProps) {
               </span>
             )}
           </div>
+          {/* Stock indicator */}
+          <div className="mb-3">
+            {product.stock > 0 ? (
+              <Badge
+                variant="secondary"
+                className={`text-xs ${
+                  product.stock <= 5
+                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                    : "bg-green-100 text-green-800 border-green-200"
+                }`}
+              >
+                {product.stock <= 5 ? `Only ${product.stock} left` : `In stock: ${product.stock}`}
+              </Badge>
+            ) : (
+              <Badge variant="destructive" className="text-xs">
+                Out of stock
+              </Badge>
+            )}
+          </div>
         </div>
         <Button
           onClick={handleAddToCart}

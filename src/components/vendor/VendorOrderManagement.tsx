@@ -70,6 +70,49 @@ const ORDER_STATUSES = Object.entries(ORDER_STATUS_CONFIG).map(([value, meta]) =
   color: meta.color,
   icon: meta.icon,
 }));
+// Base selectable statuses for vendors (excludes PENDING, CONFIRMED which are payment-controlled)
+const BASE_SELECTABLE_VENDOR_STATUSES = ORDER_STATUSES.filter(
+  (s) => s.value !== "PENDING" && s.value !== "CONFIRMED" && s.value !== "REFUNDED" && s.value !== "CANCELLED"
+);
+
+// Get selectable statuses based on current order status
+const getSelectableStatusesForOrder = (currentStatus: string) => {
+  // If order is DELIVERED, only REFUNDED is allowed
+  if (currentStatus === "DELIVERED") {
+    return ORDER_STATUSES.filter((s) => s.value === "REFUNDED");
+  }
+  
+  // If order is REFUNDED, no status changes allowed
+  if (currentStatus === "REFUNDED") {
+    return [];
+  }
+  
+  // If order is SHIPPED, can go to DELIVERED or REFUNDED
+  if (currentStatus === "SHIPPED") {
+    return ORDER_STATUSES.filter(
+      (s) => s.value === "DELIVERED" || s.value === "REFUNDED"
+    );
+  }
+  
+  // If order is PROCESSING, can go to SHIPPED, DELIVERED, or REFUNDED
+  if (currentStatus === "PROCESSING") {
+    return ORDER_STATUSES.filter(
+      (s) => s.value === "SHIPPED" || s.value === "DELIVERED" || s.value === "REFUNDED"
+    );
+  }
+  
+  // For CONFIRMED status (from payment), vendors can start with PROCESSING
+  if (currentStatus === "CONFIRMED") {
+    return ORDER_STATUSES.filter(
+      (s) => s.value === "PROCESSING" || s.value === "SHIPPED" || s.value === "DELIVERED" || s.value === "REFUNDED"
+    );
+  }
+  
+  // Default: return base selectable statuses + REFUNDED (refunds can happen at any stage)
+  return BASE_SELECTABLE_VENDOR_STATUSES.concat(
+    ORDER_STATUSES.filter((s) => s.value === "REFUNDED")
+  );
+};
 
 const formatStatusLabel = (status?: string | null) => {
   if (!status) return "Pending";
@@ -473,7 +516,7 @@ export function VendorOrderManagement() {
       if (!orderDetailId) {
         throw new Error("Order not specified");
       }
-      const response = await apiFetch<OrderReviewResponse>(`/reviews/order/${orderDetailId}`);
+      const response = await apiFetch<{ success: boolean; data: OrderReviewResponse['data']; message?: string }>(`/reviews/order/${orderDetailId}`);
       if (!response.success) {
         throw new Error(response.message || "Failed to load order reviews");
       }
@@ -679,7 +722,7 @@ export function VendorOrderManagement() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {ORDER_STATUSES.map((status) => (
+                                {getSelectableStatusesForOrder(order.status).map((status) => (
                                   <SelectItem key={status.value} value={status.value}>
                                     {status.label}
                                   </SelectItem>
@@ -703,13 +746,15 @@ export function VendorOrderManagement() {
                               <StatusIcon className="h-3 w-3 mr-1" />
                                 {formatStatusLabel(order.status)}
                             </Badge>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                                onClick={() => handleStatusEdit(order.id, order.status)}
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
+                            {order.status !== 'REFUNDED' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                  onClick={() => handleStatusEdit(order.id, order.status)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            )}
                           </div>
                         )}
                       </TableCell>

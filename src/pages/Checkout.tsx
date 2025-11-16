@@ -453,18 +453,6 @@ export default function Checkout() {
                         <CreditCard className="h-5 w-5" />
                         <span className="font-medium">Credit/Debit Card (Stripe)</span>
                       </label>
-                      <label className="flex items-center space-x-3 p-4 border rounded-lg cursor-pointer hover:bg-muted/50">
-                        <input
-                          type="radio"
-                          name="paymentMethod"
-                          value="bank"
-                          checked={paymentMethod === 'bank'}
-                          onChange={(e) => setPaymentMethod(e.target.value)}
-                          className="w-4 h-4"
-                        />
-                        <Lock className="h-5 w-5" />
-                        <span className="font-medium">Bank Transfer</span>
-                      </label>
                     </div>
                   </CardContent>
                 </Card>

@@ -373,6 +373,7 @@ enum EarningStatus {
   PROCESSING
   PAID
   FAILED
+  REFUNDED
 }
 
 enum AddressType {

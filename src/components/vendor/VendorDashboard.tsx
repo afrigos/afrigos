@@ -125,10 +125,22 @@ export function VendorDashboard() {
   };
 
   const handleQuickAction = (action: string) => {
-    toast({
-      title: "Action Initiated",
-      description: `${action} action has been started.`,
-    });
+    switch (action) {
+      case 'Add Product':
+        navigate('/vendor/products');
+        break;
+      case 'View Orders':
+        navigate('/vendor/orders');
+        break;
+      case 'Analytics':
+        navigate('/vendor/analytics');
+        break;
+      case 'Settings':
+        navigate('/vendor/profile');
+        break;
+      default:
+        toast({ title: "Unknown action" });
+    }
   };
 
   // Show loading state

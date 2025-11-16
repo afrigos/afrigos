@@ -124,6 +124,27 @@ const Cart = () => {
                             <div className="text-sm text-muted-foreground">
                               {`Sold by ${vendorLabel}`}
                             </div>
+                            {/* Stock indicator */}
+                            <div className="mt-1">
+                              {availableStock > 0 ? (
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs ${
+                                    availableStock <= 5
+                                      ? "bg-amber-100 text-amber-800 border-amber-200"
+                                      : "bg-green-100 text-green-800 border-green-200"
+                                  }`}
+                                >
+                                  {availableStock <= 5
+                                    ? `Only ${availableStock} left`
+                                    : `In stock: ${availableStock}`}
+                                </Badge>
+                              ) : (
+                                <Badge variant="destructive" className="text-xs">
+                                  Out of stock
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <button
                             type="button"

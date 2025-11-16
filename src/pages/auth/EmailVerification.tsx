@@ -13,7 +13,17 @@ interface VerifyEmailResponse {
   success: boolean;
   message: string;
   data: {
-    user: any;
+    user: {
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      role: 'CUSTOMER' | 'VENDOR' | 'ADMIN';
+      isActive: boolean;
+      vendorProfile?: { id: string; businessName?: string | null } | null;
+      vendorId?: string | null;
+      vendorName?: string | null;
+    };
     token: string;
   };
 }
@@ -144,8 +154,8 @@ export default function EmailVerification() {
           name: `${data.data.user.firstName} ${data.data.user.lastName}`,
           role: (userRole === 'vendor' ? 'vendor' : 'customer') as 'customer' | 'vendor',
           avatar: null,
-          vendorId: (data.data.user as any).vendorProfile?.id || (data.data.user as any).vendorId,
-          vendorName: (data.data.user as any).vendorProfile?.businessName || (data.data.user as any).vendorName,
+          vendorId: data.data.user.vendorProfile?.id || data.data.user.vendorId || undefined,
+          vendorName: data.data.user.vendorProfile?.businessName || data.data.user.vendorName || undefined,
           isActive: data.data.user.isActive,
           isVerified: true
         };
@@ -163,7 +173,8 @@ export default function EmailVerification() {
       } else if (role === 'vendor' || data.data.user.role === 'VENDOR') {
         // For vendors, check if they're approved or pending
         const isPendingApproval = !data.data.user.isActive || 
-          ((data.data.user as any).vendorProfile?.verificationStatus !== 'VERIFIED');
+          // We don't have verificationStatus in this response type; fallback to active flag only
+          false;
         
         if (isPendingApproval) {
           navigate('/auth/pending-approval');

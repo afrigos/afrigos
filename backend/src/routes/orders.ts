@@ -430,17 +430,8 @@ router.post('/', [
       }))
     });
 
-    // Update product stock
-    for (const item of orderItems) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          stock: {
-            decrement: item.quantity
-          }
-        }
-      });
-    }
+    // Note: Do NOT update product stock at order creation.
+    // Stock should only be decremented when the order is CONFIRMED by the payment/order flow.
 
     // Fetch complete order with items
     const completeOrder = await prisma.order.findUnique({
@@ -570,6 +561,14 @@ router.patch('/:id/status', [
     const { id } = req.params;
     const { status } = req.body;
 
+    // Vendors cannot set status to PENDING or CONFIRMED; those are controlled by payment flow
+    if (req.user.role === 'VENDOR' && (status === 'PENDING' || status === 'CONFIRMED')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vendors cannot set status to PENDING or CONFIRMED. These are controlled by payment flow.'
+      });
+    }
+
     const order = await prisma.order.findUnique({
       where: { id },
       include: {
@@ -619,8 +618,40 @@ router.patch('/:id/status', [
       });
     }
 
+    // Prevent editing refunded orders - once refunded, status cannot be changed
+    if (order.status === 'REFUNDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Refunded orders cannot be edited. The order status cannot be changed once it is refunded.'
+      });
+    }
+
+    // Prevent going backwards from DELIVERED - once delivered, can only be refunded
+    if (order.status === 'DELIVERED' && status !== 'REFUNDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Delivered orders cannot be changed to any other status except REFUNDED.'
+      });
+    }
+
+    // Prevent going backwards from SHIPPED - can only go forward to DELIVERED or REFUNDED
+    if (order.status === 'SHIPPED' && status !== 'DELIVERED' && status !== 'REFUNDED') {
+      return res.status(400).json({
+        success: false,
+        message: 'Once an order is shipped, you can only mark it as delivered or refunded. You cannot change it back to a previous status.'
+      });
+    }
+
+    // Prevent going backwards from PROCESSING - can only go forward
+    if (order.status === 'PROCESSING' && ['PENDING', 'CONFIRMED'].includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot change an order status backwards. Once processing, you can only move forward to shipped, delivered, or refunded.'
+      });
+    }
+
     // Store previous status for email
-    const previousStatus = order.status;
+    const previousStatus = order.status as string;
 
     const updatedOrder = await prisma.order.update({
       where: { id },
@@ -635,6 +666,110 @@ router.patch('/:id/status', [
         updatedAt: true
       }
     });
+
+    // Inventory adjustments
+    // - Decrement stock when order transitions to CONFIRMED (from any other status)
+    // - Restock when order transitions to REFUNDED from a state where stock was previously deducted
+    try {
+      if (status === 'CONFIRMED' && previousStatus !== 'CONFIRMED') {
+        for (const item of order.orderItems) {
+          await prisma.product.update({
+            where: { id: item.productId },
+            data: {
+              stock: {
+                decrement: item.quantity
+              }
+            }
+          });
+        }
+      }
+      if (status === 'REFUNDED' && previousStatus !== 'REFUNDED') {
+        // Only restock if we had deducted stock at confirmation or later stages
+        const hadDeducted =
+          previousStatus === 'CONFIRMED' ||
+          previousStatus === 'PROCESSING' ||
+          previousStatus === 'SHIPPED' ||
+          previousStatus === 'DELIVERED';
+        if (hadDeducted) {
+          for (const item of order.orderItems) {
+            await prisma.product.update({
+              where: { id: item.productId },
+              data: {
+                stock: {
+                  increment: item.quantity
+                }
+              }
+            });
+          }
+        }
+
+        // Handle vendor earnings refund: deduct from withdrawal balance and mark earning as refunded
+        // Only process if there's a vendor earning for this order that was moved to withdrawal
+        try {
+          const vendorEarning = await prisma.vendorEarning.findFirst({
+            where: {
+              orderId: order.id,
+              vendorId: order.vendorId,
+              movedToWithdrawal: true,
+              status: { not: 'REFUNDED' as any } // Avoid processing already refunded earnings
+            }
+          });
+
+          if (vendorEarning) {
+            const netAmount = Number(vendorEarning.netAmount);
+            
+            // Deduct the net amount from vendor's withdrawal balance
+            // The commission portion stays with admin (was never given to vendor)
+            await prisma.vendorProfile.update({
+              where: { id: order.vendorId },
+              data: {
+                withdrawalBalance: {
+                  decrement: netAmount
+                }
+              } as any
+            });
+
+            // Mark the earning as refunded
+            await prisma.vendorEarning.update({
+              where: { id: vendorEarning.id },
+              data: {
+                status: 'REFUNDED' as any
+              }
+            });
+
+            // Notify vendor about the refund deduction
+            const vendorUser = await prisma.user.findFirst({
+              where: {
+                vendorProfile: {
+                  id: order.vendorId
+                }
+              },
+              select: {
+                id: true
+              }
+            });
+
+            if (vendorUser) {
+              await prisma.notification.create({
+                data: {
+                  userId: vendorUser.id,
+                  title: 'Order Refunded',
+                  message: `Order ${order.orderNumber} has been refunded. £${netAmount.toFixed(2)} has been deducted from your withdrawal balance.`,
+                  type: 'PAYMENT_RECEIVED'
+                }
+              });
+            }
+          }
+        } catch (refundError) {
+          console.error('Error processing vendor refund deduction for order:', id, refundError);
+          // Continue with order status update even if refund processing fails
+          // Admin can manually reconcile if needed
+        }
+      }
+    } catch (invError) {
+      console.error('Inventory adjustment error for order:', id, invError);
+      // Do not fail the request due to inventory side-effects; admins can reconcile if needed
+    }
 
     // Send email notification to customer when order status is updated
     // Only send if status actually changed and customer exists

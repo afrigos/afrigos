@@ -18,7 +18,7 @@ function generateOTP(): string {
 // @route   POST /api/v1/auth/register
 // @access  Public
 router.post('/register', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').trim().isEmail().customSanitizer((v) => (typeof v === 'string' ? v.toLowerCase() : v)),
   body('password').isLength({ min: 6 }),
   body('firstName').trim().notEmpty(),
   body('lastName').trim().notEmpty(),
@@ -182,7 +182,7 @@ router.post('/register', [
 // @route   POST /api/v1/auth/verify-email
 // @access  Public
 router.post('/verify-email', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').trim().isEmail().customSanitizer((v) => (typeof v === 'string' ? v.toLowerCase() : v)),
   body('otp').isLength({ min: 6, max: 6 }).isNumeric()
 ], async (req: any, res: any) => {
   try {
@@ -291,7 +291,7 @@ router.post('/verify-email', [
 // @route   POST /api/v1/auth/resend-otp
 // @access  Public
 router.post('/resend-otp', [
-  body('email').isEmail().normalizeEmail()
+  body('email').trim().isEmail().customSanitizer((v) => (typeof v === 'string' ? v.toLowerCase() : v))
 ], async (req: any, res: any) => {
   try {
     const errors = validationResult(req);
@@ -371,7 +371,7 @@ router.post('/resend-otp', [
 // @route   POST /api/v1/auth/login
 // @access  Public
 router.post('/login', [
-  body('email').isEmail().normalizeEmail(),
+  body('email').trim().isEmail().customSanitizer((v) => (typeof v === 'string' ? v.toLowerCase() : v)),
   body('password').notEmpty()
 ], async (req: any, res: any) => {
   try {
