@@ -37,7 +37,7 @@ const app = express();
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:8083",
+    origin: true, // Allow all origins
     methods: ["GET", "POST"]
   }
 });
@@ -68,8 +68,10 @@ app.use(helmet({
 app.use(compression());
 app.use(morgan('combined'));
 app.use(limiter);
-// CORS configuration - Allowed origins
+// CORS configuration - Allow all origins for now
+// Default origins kept for reference/documentation
 const defaultOrigins = [
+  "http://localhost:8081",
   "http://localhost:8083",
   "http://localhost:8084", 
   "http://localhost:3000",
@@ -79,29 +81,9 @@ const defaultOrigins = [
   "https://afrigos.com"
 ];
 
-// Add origins from environment variable if set
-const envOrigins = process.env.CORS_ORIGIN 
-  ? process.env.CORS_ORIGIN.split(',').map((origin: string) => origin.trim())
-  : [];
-
-// Add FRONTEND_URL if set
-if (process.env.FRONTEND_URL && !envOrigins.includes(process.env.FRONTEND_URL)) {
-  envOrigins.push(process.env.FRONTEND_URL);
-}
-
-// Combine all allowed origins
-const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
-
+// Allow all origins - no blocking
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true, // Allow all origins
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true

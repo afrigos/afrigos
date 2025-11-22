@@ -9,7 +9,7 @@ export default function About() {
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4">About AfriGos</h1>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Your trusted marketplace for authentic African products. Connecting vendors and customers across the continent.
+            Your trusted marketplace for authentic African products. Connecting vendors and customers across the united kingdom.
           </p>
         </div>
 

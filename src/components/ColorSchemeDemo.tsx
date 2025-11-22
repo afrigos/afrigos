@@ -45,7 +45,7 @@ export function ColorSchemeDemo() {
             <h3 className="text-xl font-semibold">Authentic Products</h3>
           </div>
           <p className="opacity-90">
-            Discover genuine African goods from verified vendors across the continent.
+            Discover genuine African goods from verified vendors across the united kingdom.
           </p>
         </CardGradient>
 

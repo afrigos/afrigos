@@ -577,7 +577,7 @@ export default function Marketplace() {
               Start Selling on AfriGos
             </h2>
             <p className="text-lg mb-8 text-white/90 max-w-2xl mx-auto">
-              Join thousands of vendors selling authentic African products. Reach customers across the continent.
+              Join thousands of vendors selling authentic African products. Reach customers across the united kingdom.
             </p>
             <Link to="/auth/vendor-signup">
               <Button size="lg" variant="secondary" className="bg-white text-primary hover:bg-gray-100 px-8 py-6 text-base font-semibold">

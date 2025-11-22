@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Facebook, Twitter, Instagram, Mail, Phone } from "lucide-react";
+import { Facebook, Twitter, Instagram, Mail } from "lucide-react";
 
 export function CustomerFooter() {
   return (
@@ -10,7 +10,7 @@ export function CustomerFooter() {
           <div>
             <h3 className="font-bold text-lg mb-4">About AfriGos</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Your trusted marketplace for authentic African products. Connecting vendors and customers across the continent.
+              Your trusted marketplace for authentic African products. Connecting vendors and customers across the united kingdom.
             </p>
             <div className="flex gap-4">
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
@@ -90,15 +90,6 @@ export function CustomerFooter() {
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   enquiries@afrigos.com
-                </a>
-              </li>
-              <li className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a 
-                  href="tel:+447304276064" 
-                  className="text-muted-foreground hover:text-primary transition-colors"
-                >
-                  +44 7304 276064
                 </a>
               </li>
             </ul>

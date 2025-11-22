@@ -14,7 +14,7 @@ export default function FAQ() {
       items: [
         {
           question: "What is AfriGos?",
-          answer: "AfriGos is a trusted marketplace dedicated to authentic African products. We connect vendors across the continent with customers worldwide, offering a curated selection of food, fashion, home decor, and more.",
+          answer: "AfriGos is a trusted marketplace dedicated to authentic African products. We connect vendors across the united kingdom with customers worldwide, offering a curated selection of food, fashion, home decor, and more.",
         },
         {
           question: "How do I create an account?",
