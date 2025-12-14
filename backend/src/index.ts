@@ -112,6 +112,68 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/admin-auth', adminAuthRoutes);
+
+// Public user routes (no auth required) - must be before protected routes
+import { sendAccountDeletionRequestEmail } from './services/emailService';
+import { body, validationResult } from 'express-validator';
+
+app.post('/api/v1/users/request-deletion-public', [
+  body('email').trim().isEmail().withMessage('Valid email is required'),
+  body('reason').optional().trim()
+], async (req: any, res: any) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { email, reason } = req.body;
+    // Note: prisma is already defined globally above
+
+    // Look up user by email to get their details
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true
+      }
+    });
+
+    // Send email notification to admin
+    try {
+      await sendAccountDeletionRequestEmail({
+        userEmail: email.toLowerCase().trim(),
+        firstName: user?.firstName || 'Unknown',
+        lastName: user?.lastName || '',
+        role: user?.role || 'UNKNOWN',
+        userId: user?.id || 'N/A',
+        reason: reason || undefined
+      });
+    } catch (emailError) {
+      console.error('Failed to send deletion request email:', emailError);
+    }
+
+    res.json({
+      success: true,
+      message: 'Account deletion request has been submitted. Our team will process your request shortly.'
+    });
+  } catch (error) {
+    console.error('Request account deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to submit account deletion request'
+    });
+  }
+});
+
+// Protected user routes
 app.use('/api/v1/users', authenticate, userRoutes);
 app.use('/api/v1/vendors', authenticate, vendorRoutes);
 app.use('/api/v1/products', productRoutes);

@@ -40,9 +40,13 @@ import {
   XCircle,
   AlertCircle,
   User,
+  Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { API_BASE_URL } from "@/lib/api-config";
 import { Pagination } from "@/components/ui/pagination";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 type VendorDocumentType =
   | "BUSINESS_LICENSE"
@@ -227,6 +231,8 @@ export function VendorProfile() {
   const [uploadingDocs, setUploadingDocs] = useState<Record<string, boolean>>({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [isCreatingOnboardingLink, setIsCreatingOnboardingLink] = useState(false);
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
 
   const {
     data: profile,
@@ -350,6 +356,41 @@ export function VendorProfile() {
       }
     },
   });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (reason?: string) => {
+      const response = await apiFetch<{ success: boolean; message?: string }>("/users/request-deletion", {
+        method: "POST",
+        body: JSON.stringify({ reason: reason || undefined }),
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to submit account deletion request");
+      }
+
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request submitted",
+        description: "Your account deletion request has been sent. Our team will process it shortly.",
+      });
+      setDeleteAccountDialogOpen(false);
+      setDeleteReason("");
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Unable to submit request right now.";
+      toast({
+        title: "Request failed",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteAccount = () => {
+    deleteAccountMutation.mutate(deleteReason.trim() || undefined);
+  };
 
   const handleDocumentUpload = async (type: VendorDocumentType, file: File) => {
     setUploadingDocs((prev) => ({ ...prev, [type]: true }));
@@ -1191,6 +1232,93 @@ export function VendorProfile() {
               </CardContent>
             </Card>
       ) : null}
+
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Account Deletion
+              </CardTitle>
+              <CardDescription>
+                Request to permanently delete your account. This action cannot be undone and will affect all your products, orders, and earnings.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button
+                variant="destructive"
+                onClick={() => setDeleteAccountDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Request Account Deletion
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Dialog open={deleteAccountDialogOpen} onOpenChange={setDeleteAccountDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Request Account Deletion
+              </DialogTitle>
+              <DialogDescription>
+                Are you sure you want to request account deletion? This will send a request to our team. 
+                Your account, products, orders, and earnings will be permanently deleted after review.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="delete-reason" className="text-sm font-medium">
+                  Reason (optional)
+                </Label>
+                <Textarea
+                  id="delete-reason"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Please let us know why you're leaving..."
+                  rows={4}
+                />
+              </div>
+
+              <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+                <strong>Warning:</strong> This action will permanently delete your vendor account, all products, orders history, earnings, and all associated data.
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteAccountDialogOpen(false);
+                  setDeleteReason("");
+                }}
+                disabled={deleteAccountMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteAccount}
+                disabled={deleteAccountMutation.isPending}
+              >
+                {deleteAccountMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Submit Request
+                  </>
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
     </div>
   );
 }

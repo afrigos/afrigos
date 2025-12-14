@@ -34,6 +34,7 @@ import Returns from "./pages/Returns";
 import Terms from "./pages/Terms";
 import Privacy from "./pages/Privacy";
 import VendorStorePage from "./pages/VendorStorePage";
+import DeleteAccount from "./pages/DeleteAccount";
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -162,6 +163,7 @@ const App = () => (
               <Route path="/returns" element={<CustomerLayout><Returns /></CustomerLayout>} />
               <Route path="/terms" element={<CustomerLayout><Terms /></CustomerLayout>} />
               <Route path="/privacy" element={<CustomerLayout><Privacy /></CustomerLayout>} />
+              <Route path="/delete-account" element={<CustomerLayout><DeleteAccount /></CustomerLayout>} />
               
               {/* Protected Admin Routes */}
               <Route path="/admin/*" element={<AdminProtectedRoute><Index /></AdminProtectedRoute>} />

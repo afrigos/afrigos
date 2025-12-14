@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Package, Receipt, ShoppingCart, Star, Truck, User } from "lucide-react";
+import { Loader2, Package, Receipt, ShoppingCart, Star, Truck, User, Trash2, AlertTriangle } from "lucide-react";
 
 type Address = {
   firstName?: string;
@@ -153,6 +153,8 @@ const CustomerAccount = () => {
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [reviewDrafts, setReviewDrafts] = useState<Record<string, { rating: number; comment: string }>>({});
+  const [deleteAccountDialogOpen, setDeleteAccountDialogOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -371,6 +373,41 @@ const CustomerAccount = () => {
 
   const isSubmittingReview = reviewMutation.isPending;
 
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (reason?: string) => {
+      const response = await apiFetch<{ success: boolean; message?: string }>("/users/request-deletion", {
+        method: "POST",
+        body: JSON.stringify({ reason: reason || undefined }),
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || "Failed to submit account deletion request");
+      }
+
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Request submitted",
+        description: "Your account deletion request has been sent. Our team will process it shortly.",
+      });
+      setDeleteAccountDialogOpen(false);
+      setDeleteReason("");
+    },
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : "Unable to submit request right now.";
+      toast({
+        title: "Request failed",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteAccount = () => {
+    deleteAccountMutation.mutate(deleteReason.trim() || undefined);
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between mb-6">
@@ -441,7 +478,7 @@ const CustomerAccount = () => {
               </CardContent>
             </Card>
 
-            <Card>
+          <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Account Email</CardTitle>
                 <User className="h-4 w-4 text-muted-foreground" />
@@ -455,12 +492,34 @@ const CustomerAccount = () => {
             </Card>
           </div>
 
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Account Deletion
+              </CardTitle>
+              <CardDescription>
+                Request to permanently delete your account. This action cannot be undone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+                            <Button
+                variant="destructive"
+                onClick={() => setDeleteAccountDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Request Account Deletion
+                            </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Most Recent Order</CardTitle>
               <CardDescription>Track the progress of your most recent purchase.</CardDescription>
-            </CardHeader>
-            <CardContent>
+                      </CardHeader>
+                      <CardContent>
               {isLoading ? (
                 <Skeleton className="h-32 w-full rounded-lg" />
               ) : recentOrder ? (
@@ -637,6 +696,70 @@ const CustomerAccount = () => {
                 </>
               ) : (
                 "Submit reviews"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteAccountDialogOpen} onOpenChange={setDeleteAccountDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Request Account Deletion
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to request account deletion? This will send a request to our team. 
+              Your account will be permanently deleted after review.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="delete-reason" className="text-sm font-medium">
+                Reason (optional)
+              </Label>
+              <Textarea
+                id="delete-reason"
+                value={deleteReason}
+                onChange={(e) => setDeleteReason(e.target.value)}
+                placeholder="Please let us know why you're leaving..."
+                rows={4}
+              />
+            </div>
+
+            <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
+              <strong>Warning:</strong> This action will permanently delete your account, orders history, and all associated data.
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteAccountDialogOpen(false);
+                setDeleteReason("");
+              }}
+              disabled={deleteAccountMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleteAccountMutation.isPending}
+            >
+              {deleteAccountMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Submit Request
+                </>
               )}
             </Button>
           </div>

@@ -1103,5 +1103,112 @@ export async function sendNewOrderEmailToVendor({
   }
 }
 
-export default { sendOTPEmail, sendOrderConfirmationEmail, sendVendorWelcomeEmail, sendVendorApprovalEmail, sendProductApprovalEmail, sendOrderStatusUpdateEmail, sendNewOrderEmailToVendor };
+interface SendAccountDeletionRequestEmailParams {
+  userEmail: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  userId: string;
+  reason?: string;
+}
+
+export async function sendAccountDeletionRequestEmail({
+  userEmail,
+  firstName,
+  lastName,
+  role,
+  userId,
+  reason
+}: SendAccountDeletionRequestEmailParams) {
+  try {
+    const fullName = `${firstName} ${lastName}`.trim() || 'User';
+    
+    const result = await resend.emails.send({
+      from: 'AfriGos <noreply@afrigos.com>',
+      to: 'afrigosltd@gmail.com',
+      subject: `Account Deletion Request - ${fullName} (${userEmail})`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Account Deletion Request</title>
+          </head>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); padding: 24px; text-align: center; border-radius: 10px 10px 0 0;">
+              <img src="${LOGO_URL}" alt="AfriGos Logo" style="width: 56px; height: 56px; border-radius: 12px; object-fit: cover; margin-bottom: 8px;" />
+              <h1 style="color: white; margin: 0; font-size: 24px;">AfriGos</h1>
+            </div>
+            <div style="background: #ffffff; padding: 40px; border: 1px solid #e0e0e0; border-top: none; border-radius: 0 0 10px 10px;">
+              <h2 style="color: #333; margin-top: 0;">Account Deletion Request</h2>
+              <p>A user has requested to delete their account from AfriGos.</p>
+              
+              <div style="background: #f8f9fa; border: 2px solid #ff6b35; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                <h3 style="color: #333; margin-top: 0; margin-bottom: 15px; font-size: 18px;">User Information</h3>
+                <div style="color: #666; line-height: 2;">
+                  <div><strong>Name:</strong> ${fullName}</div>
+                  <div><strong>Email:</strong> ${userEmail}</div>
+                  <div><strong>User ID:</strong> ${userId}</div>
+                  <div><strong>Role:</strong> ${role}</div>
+                  <div><strong>Request Date:</strong> ${new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })}</div>
+                </div>
+              </div>
+
+              ${reason ? `
+                <div style="background: #fffbeb; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                  <strong style="color: #92400e;">Reason Provided:</strong>
+                  <div style="color: #666; margin-top: 10px; white-space: pre-wrap;">${reason}</div>
+                </div>
+              ` : ''}
+
+              <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0;">
+                <strong style="color: #1e40af;">Action Required:</strong>
+                <div style="color: #666; margin-top: 5px;">Please review this request and process the account deletion if appropriate. Ensure all associated data, orders, and transactions are handled according to your data retention policies.</div>
+              </div>
+
+              <p style="margin-top: 30px; color: #666;">This is an automated notification from the AfriGos platform.</p>
+              
+              <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <p style="color: #999; font-size: 12px; margin: 0;">This is an automated email. Please do not reply to this message.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
+      text: `
+        Account Deletion Request - AfriGos
+        
+        A user has requested to delete their account from AfriGos.
+        
+        User Information:
+        Name: ${fullName}
+        Email: ${userEmail}
+        User ID: ${userId}
+        Role: ${role}
+        Request Date: ${new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })}
+        
+        ${reason ? `Reason Provided:\n${reason}\n` : ''}
+        
+        Action Required: Please review this request and process the account deletion if appropriate. Ensure all associated data, orders, and transactions are handled according to your data retention policies.
+        
+        This is an automated notification from the AfriGos platform.
+        
+        This is an automated email. Please do not reply to this message.
+      `,
+    });
+
+    if (result.error) {
+      console.error('Resend email error:', result.error);
+      throw new Error('Failed to send account deletion request email');
+    }
+
+    return { success: true, messageId: result.data?.id };
+  } catch (error: any) {
+    console.error('Email service error:', error);
+    throw new Error(error.message || 'Failed to send account deletion request email');
+  }
+}
+
+export default { sendOTPEmail, sendOrderConfirmationEmail, sendVendorWelcomeEmail, sendVendorApprovalEmail, sendProductApprovalEmail, sendOrderStatusUpdateEmail, sendNewOrderEmailToVendor, sendAccountDeletionRequestEmail };
 
