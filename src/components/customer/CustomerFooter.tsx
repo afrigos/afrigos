@@ -76,6 +76,16 @@ export function CustomerFooter() {
                   Privacy Policy
                 </Link>
               </li>
+              <li>
+                <Link to="/delete-data" className="text-muted-foreground hover:text-primary transition-colors">
+                  Delete My Data
+                </Link>
+              </li>
+              <li>
+                <Link to="/delete-account" className="text-muted-foreground hover:text-primary transition-colors">
+                  Delete My Account
+                </Link>
+              </li>
             </ul>
           </div>
 

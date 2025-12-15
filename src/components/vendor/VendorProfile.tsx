@@ -1254,7 +1254,6 @@ export function VendorProfile() {
               </Button>
             </CardContent>
           </Card>
-        </div>
 
         <Dialog open={deleteAccountDialogOpen} onOpenChange={setDeleteAccountDialogOpen}>
           <DialogContent className="max-w-md">
@@ -1281,7 +1280,7 @@ export function VendorProfile() {
                   placeholder="Please let us know why you're leaving..."
                   rows={4}
                 />
-              </div>
+          </div>
 
               <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
                 <strong>Warning:</strong> This action will permanently delete your vendor account, all products, orders history, earnings, and all associated data.
