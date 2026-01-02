@@ -24,6 +24,7 @@ import vendorDashboardRoutes from './routes/vendor-dashboard';
 import adminProductsRoutes from './routes/admin-products';
 import reviewsRoutes from './routes/reviews';
 import bannerRoutes from './routes/banners';
+import emailRoutes from './routes/emails';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler';
@@ -34,6 +35,10 @@ import { authenticate } from './middleware/auth';
 dotenv.config();
 
 const app = express();
+
+// Trust proxy for ngrok and other reverse proxies
+app.set('trust proxy', true);
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -90,7 +95,8 @@ app.use(cors({
 }));
 
 // Stripe webhook needs raw body, so we handle it at route level
-// Apply JSON parsing to all routes except webhook
+// Email webhook uses JSON (handled in route)
+// Apply JSON parsing to all routes except Stripe webhook
 app.use((req, res, next) => {
   if (req.path === '/api/v1/payments/webhook') {
     return next();
@@ -112,6 +118,9 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/admin-auth', adminAuthRoutes);
+
+// Email webhook routes (public - no auth required)
+app.use('/api/v1/emails', emailRoutes);
 
 // Public user routes (no auth required) - must be before protected routes
 import { sendAccountDeletionRequestEmail } from './services/emailService';
